@@ -216,10 +216,20 @@ export const DataProvider = ({ children, orgId }) => {
       };
     });
     
+    // ضمان وجود جميع بيانات الخصم
+    const discountData = {
+      discountType: invoice.discountType || 'percentage',
+      discountValue: parseFloat(invoice.discountValue) || 0,
+      discountAmount: parseFloat(invoice.discountAmount) || 0,
+      subtotal: parseFloat(invoice.subtotal) || 0,
+      total: parseFloat(invoice.total) || 0
+    };
+
     const newInvoice = { 
       id: Date.now(), 
       date: new Date().toISOString(), 
       ...invoice,
+      ...discountData, // إضافة بيانات الخصم بشكل صريح
       items: enrichedItems,
       supplierId: parseInt(invoice.supplierId) // تحويل إلى رقم
     };
