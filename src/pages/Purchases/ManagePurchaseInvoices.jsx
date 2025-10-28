@@ -7,12 +7,12 @@ import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { useAuth } from '../../context/AuthContext';
+import { useTab } from '../../contexts/TabContext';
 import { FaFileInvoice, FaEdit, FaTrash, FaPrint, FaSearch, FaFilter, FaUndo, FaExclamationTriangle } from 'react-icons/fa';
 import { printInvoiceDirectly } from '../../utils/printUtils';
-import { useNavigate } from 'react-router-dom';
 
 const ManagePurchaseInvoices = () => {
-  const navigate = useNavigate();
+  const { openNewTab, switchTab, tabs } = useTab();
   const { purchaseInvoices, suppliers, products, warehouses, purchaseReturns, deletePurchaseInvoice } = useData();
   const { showSuccess, showError } = useNotification();
   const { settings } = useSystemSettings();
@@ -58,7 +58,29 @@ const ManagePurchaseInvoices = () => {
       showError('ليس لديك صلاحية لإرجاع فواتير المشتريات');
       return;
     }
-    navigate(`/purchases/return/${invoice.id}`);
+    
+    console.log('🔄 فتح صفحة إرجاع الفاتورة:', invoice.id);
+    
+    const tabPath = `/purchases/return/${invoice.id}`;
+    
+    // فحص ما إذا كان التبويب مفتوح مسبقاً
+    const existingTab = tabs.find(tab => tab.path === tabPath);
+    
+    if (existingTab) {
+      // إذا كان التبويب موجود مسبقاً، نقوم بتفعيله
+      console.log('📋 تفعيل التبويب الموجود مسبقاً');
+      switchTab(existingTab.id);
+    } else {
+      // فتح تبويب جديد والانتقال للمسار
+      console.log('✨ إنشاء تبويب جديد لصفحة إرجاع الفاتورة');
+      openNewTab();
+      
+      // تأخير قصير للتأكد من إنشاء التبويب، ثم التحديث
+      setTimeout(() => {
+        // تحديث مسار التبويب الجديد إلى صفحة الإرجاع
+        window.location.hash = `#${tabPath}`;
+      }, 100);
+    }
   };
 
   const handleView = (invoice) => {

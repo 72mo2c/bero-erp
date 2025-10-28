@@ -54,6 +54,16 @@ export const TabProvider = ({ children }) => {
 
   // الحصول على عنوان الصفحة من المسار
   const getPageTitle = (path) => {
+    // دعم المسارات الديناميكية
+    if (path.startsWith('/purchases/return/')) {
+      const invoiceId = path.split('/').pop();
+      return `إرجاع فاتورة #${invoiceId}`;
+    }
+    if (path.startsWith('/sales/return/')) {
+      const invoiceId = path.split('/').pop();
+      return `إرجاع فاتورة مبيعات #${invoiceId}`;
+    }
+    
     const titles = {
       '/dashboard': 'لوحة التحكم',
       '/warehouses/add-product': 'إضافة بضاعة',

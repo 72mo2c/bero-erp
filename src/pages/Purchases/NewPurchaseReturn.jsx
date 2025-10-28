@@ -21,13 +21,45 @@ const NewPurchaseReturn = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log('🚀 تم تحميل مكون NewPurchaseReturn');
+    
+    // محاولة الحصول على invoiceId من مصادر مختلفة
+    let actualInvoiceId = invoiceId;
+    
+    // إذا لم نجد invoiceId من useParams، نجرب من URL hash أو search params
+    if (!actualInvoiceId) {
+      // من URL hash (مثل #/purchases/return/123)
+      const hash = window.location.hash;
+      if (hash && hash.includes('/return/')) {
+        actualInvoiceId = hash.split('/return/')[1];
+        console.log('📄 تم الحصول على invoiceId من hash:', actualInvoiceId);
+      }
+      
+      // من search params (مثل ?id=123)
+      if (!actualInvoiceId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        actualInvoiceId = urlParams.get('id');
+        console.log('🔍 تم الحصول على invoiceId من search params:', actualInvoiceId);
+      }
+    }
+    
+    console.log('🔑 معرف الفاتورة النهائي:', actualInvoiceId);
+    console.log('📊 حالة البيانات:', {
+      purchaseInvoices: purchaseInvoices?.length || 0,
+      products: products?.length || 0,
+      suppliers: suppliers?.length || 0
+    });
+    
     // تأخير قصير للسماح بتحميل البيانات
     const timer = setTimeout(() => {
       // تحقق من وجود معرف الفاتورة
-      if (!invoiceId) {
+      if (!actualInvoiceId) {
         console.error('❌ معرف الفاتورة غير موجود في URL');
         showError('معرف الفاتورة غير صحيح');
-        navigate('/purchases/manage');
+        // نستخدم navigate فقط إذا لم يكن Tab System متاحاً
+        if (typeof navigate === 'function') {
+          navigate('/purchases/manage');
+        }
         return;
       }
 
@@ -36,8 +68,8 @@ const NewPurchaseReturn = () => {
         console.log('⏳ البيانات لم تُحمل بعد، منتظر...', {
           purchaseInvoicesExists: !!purchaseInvoices,
           purchaseInvoicesLength: purchaseInvoices?.length || 0,
-          invoiceId: invoiceId,
-          invoiceIdType: typeof invoiceId
+          invoiceId: actualInvoiceId,
+          invoiceIdType: typeof actualInvoiceId
         });
         return; // انتظار تحميل البيانات
       }
@@ -46,13 +78,15 @@ const NewPurchaseReturn = () => {
         console.log('⚠️ لا توجد فواتير مشتريات في النظام');
         showError('لا توجد فواتير مشتريات في النظام');
         setIsLoading(false);
-        navigate('/purchases/manage');
+        if (typeof navigate === 'function') {
+          navigate('/purchases/manage');
+        }
         return;
       }
 
       console.log('🔍 البحث عن الفاتورة...', {
-        invoiceId: invoiceId,
-        invoiceIdType: typeof invoiceId,
+        invoiceId: actualInvoiceId,
+        invoiceIdType: typeof actualInvoiceId,
         purchaseInvoicesCount: purchaseInvoices.length,
         firstInvoiceId: purchaseInvoices[0]?.id,
         firstInvoiceIdType: typeof purchaseInvoices[0]?.id
@@ -60,8 +94,8 @@ const NewPurchaseReturn = () => {
 
       // البحث عن الفاتورة مع مقارنة مرنة
       const foundInvoice = purchaseInvoices.find(inv => {
-        const match = inv.id === parseInt(invoiceId) || 
-                     inv.id.toString() === invoiceId.toString();
+        const match = inv.id === parseInt(actualInvoiceId) || 
+                     inv.id.toString() === actualInvoiceId.toString();
         if (match) {
           console.log('✅ تم العثور على الفاتورة:', inv);
         }
@@ -70,12 +104,14 @@ const NewPurchaseReturn = () => {
       
       if (!foundInvoice) {
         console.error('❌ الفاتورة غير موجودة:', {
-          invoiceId: invoiceId,
+          invoiceId: actualInvoiceId,
           availableInvoiceIds: purchaseInvoices.map(inv => ({id: inv.id, type: typeof inv.id}))
         });
         showError('الفاتورة غير موجودة');
         setIsLoading(false);
-        navigate('/purchases/manage');
+        if (typeof navigate === 'function') {
+          navigate('/purchases/manage');
+        }
         return;
       }
 
@@ -230,17 +266,29 @@ const NewPurchaseReturn = () => {
   };
 
   if (isLoading || !invoice) {
+    // محاولة الحصول على معرف الفاتورة الحالي
+    const currentInvoiceId = invoiceId || 
+      (window.location.hash.includes('/return/') ? 
+        window.location.hash.split('/return/')[1] : 
+        new URLSearchParams(window.location.search).get('id'));
+
     return (
       <div className="max-w-7xl mx-auto p-4">
         <div className="flex flex-col items-center justify-center py-12">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-600 text-lg">جاري تحميل بيانات الفاتورة...</p>
-          <p className="text-gray-400 text-sm mt-2">معرف الفاتورة: {invoiceId}</p>
+          <p className="text-gray-600 text-lg mb-2">جاري تحميل بيانات الفاتورة...</p>
+          {currentInvoiceId && (
+            <p className="text-gray-400 text-sm">معرف الفاتورة: {currentInvoiceId}</p>
+          )}
+          <p className="text-gray-300 text-xs mt-2">الوقت: {new Date().toLocaleTimeString('ar-SA')}</p>
           {!purchaseInvoices && (
-            <p className="text-orange-500 text-sm mt-1">⏳ انتظار تحميل البيانات من النظام...</p>
+            <p className="text-orange-500 text-sm mt-2">⏳ انتظار تحميل البيانات من النظام...</p>
           )}
           {purchaseInvoices && purchaseInvoices.length === 0 && (
-            <p className="text-red-500 text-sm mt-1">⚠️ لا توجد فواتير في النظام</p>
+            <p className="text-red-500 text-sm mt-2">⚠️ لا توجد فواتير في النظام</p>
+          )}
+          {purchaseInvoices && purchaseInvoices.length > 0 && !invoice && (
+            <p className="text-yellow-500 text-sm mt-2">🔍 جاري البحث عن الفاتورة...</p>
           )}
         </div>
       </div>
