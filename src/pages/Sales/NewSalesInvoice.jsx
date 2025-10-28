@@ -5,7 +5,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
-import { FaSave, FaPrint, FaSearch, FaTrash, FaPercent } from 'react-icons/fa';
+import { FaSave, FaPrint, FaSearch, FaTrash, FaPercent, FaUserPlus, FaCheckCircle, FaPlus } from 'react-icons/fa';
 import { printInvoiceDirectly } from '../../utils/printUtils';
 
 const NewSalesInvoice = () => {
@@ -47,6 +47,13 @@ const NewSalesInvoice = () => {
   const [discountErrors, setDiscountErrors] = useState([false]);
   const [validationErrors, setValidationErrors] = useState({});
 
+  // متغيرات إضافة العميل السريع
+  const [showQuickCustomerModal, setShowQuickCustomerModal] = useState(false);
+  const [quickCustomerData, setQuickCustomerData] = useState({
+    name: '',
+    phone: ''
+  });
+
   // مراجع للتركيز التلقائي
   const customerInputRef = useRef(null);
   const productInputRefs = useRef([]);
@@ -64,6 +71,11 @@ const NewSalesInvoice = () => {
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
         handleSubmit(e);
+      }
+      // Ctrl+N لفتح مودال إضافة عميل سريع
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        setShowQuickCustomerModal(true);
       }
       // Enter لإضافة صف جديد (عند التركيز في حقل الكمية الأخير)
       if (e.key === 'Enter' && e.target.name?.startsWith('mainQuantity-')) {
@@ -101,6 +113,49 @@ const NewSalesInvoice = () => {
     });
     setCustomerSearch(customer.name);
     setShowCustomerSuggestions(false);
+  };
+
+  // دوال إضافة العميل السريع
+  const handleQuickCustomerChange = (field, value) => {
+    setQuickCustomerData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleQuickCustomerSubmit = async () => {
+    if (!quickCustomerData.name.trim()) {
+      showError('يجب إدخال اسم العميل');
+      return;
+    }
+
+    if (!quickCustomerData.phone.trim()) {
+      showError('يجب إدخال رقم هاتف العميل');
+      return;
+    }
+
+    try {
+      const newCustomer = addCustomer({
+        name: quickCustomerData.name.trim(),
+        phone: quickCustomerData.phone.trim()
+      });
+
+      // تحديد العميل الجديد في الفاتورة
+      selectCustomer(newCustomer);
+      
+      showSuccess(`تم إضافة العميل "${newCustomer.name}" بنجاح`);
+      
+      // إغلاق المودال وتنظيف البيانات
+      closeQuickCustomerModal();
+      
+    } catch (error) {
+      showError('حدث خطأ في إضافة العميل');
+    }
+  };
+
+  const closeQuickCustomerModal = () => {
+    setShowQuickCustomerModal(false);
+    setQuickCustomerData({ name: '', phone: '' });
   };
   
   // إخفاء قائمة العملاء عند الخروج من الحقل
@@ -516,9 +571,26 @@ const NewSalesInvoice = () => {
               />
               <FaSearch className="absolute left-2 top-2.5 text-gray-400 text-xs" />
             </div>
-            {showCustomerSuggestions && customerSearch.trim().length > 0 && filteredCustomers.length > 0 && (
+            {showCustomerSuggestions && customerSearch.trim().length > 0 && (
               <div className="absolute z-[9999] w-full mt-1 bg-white border-2 border-blue-400 rounded-lg shadow-xl max-h-56 overflow-y-auto">
-                {filteredCustomers.map((customer) => (
+                {/* خيار إضافة عميل جديد */}
+                <div
+                  onClick={() => setShowQuickCustomerModal(true)}
+                  className="px-4 py-3 hover:bg-green-50 cursor-pointer border-b transition-colors bg-green-25"
+                >
+                  <div className="flex items-center gap-3">
+                    <FaUserPlus className="text-green-600 text-sm" />
+                    <div className="flex-1">
+                      <span className="font-semibold text-sm text-green-700">إضافة عميل جديد</span>
+                      <div className="text-xs text-green-600 mt-1">
+                        اضغط Ctrl+N أو انقر هنا لإضافة عميل سريع
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* العملاء الموجودين */}
+                {filteredCustomers.length > 0 && filteredCustomers.map((customer) => (
                   <div
                     key={customer.id}
                     onClick={() => selectCustomer(customer)}
@@ -530,6 +602,12 @@ const NewSalesInvoice = () => {
                     </div>
                   </div>
                 ))}
+                
+                {filteredCustomers.length === 0 && (
+                  <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                    لا توجد نتائج مطابقة للبحث
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -852,10 +930,93 @@ const NewSalesInvoice = () => {
         <div className="mt-4 pt-3 border-t text-xs text-gray-500 text-center">
           <span className="inline-block mx-2">💡 اختصارات: </span>
           <span className="inline-block mx-2">Ctrl+S = حفظ</span>
+          <span className="inline-block mx-2">Ctrl+N = عميل جديد</span>
           <span className="inline-block mx-2">Enter = صف جديد</span>
           <span className="inline-block mx-2">Tab = التنقل</span>
         </div>
       </div>
+
+      {/* مودال إضافة عميل سريع */}
+      {showQuickCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            {/* رأس المودال */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <FaUserPlus className="text-green-600 text-lg" />
+                <h3 className="text-lg font-semibold text-gray-800">إضافة عميل جديد</h3>
+              </div>
+              <button
+                onClick={closeQuickCustomerModal}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* محتوى المودال */}
+            <div className="space-y-4">
+              {/* اسم العميل */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  اسم العميل <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={quickCustomerData.name}
+                  onChange={(e) => handleQuickCustomerChange('name', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="أدخل اسم العميل..."
+                  autoFocus
+                />
+              </div>
+
+              {/* رقم الهاتف */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  رقم الهاتف <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={quickCustomerData.phone}
+                  onChange={(e) => handleQuickCustomerChange('phone', e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleQuickCustomerSubmit();
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="أدخل رقم الهاتف..."
+                />
+              </div>
+            </div>
+
+            {/* أزرار المودال */}
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={closeQuickCustomerModal}
+                className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleQuickCustomerSubmit}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                <FaCheckCircle />
+                إضافة العميل
+              </button>
+            </div>
+
+            {/* نصائح */}
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <div className="text-xs text-blue-700">
+                💡 نصيحة: اضغط Enter لإضافة العميل بسرعة
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
