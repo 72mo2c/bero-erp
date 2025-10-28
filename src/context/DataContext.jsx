@@ -551,7 +551,6 @@ export const DataProvider = ({ children, orgId }) => {
       saveData('bero_purchase_invoices', updatedInvoices);
     }
   };
-  };
 
   // ==================== دوال فواتير المبيعات ====================
   
