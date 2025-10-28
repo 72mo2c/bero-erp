@@ -18,15 +18,46 @@ const NewPurchaseReturn = () => {
   const [returnItems, setReturnItems] = useState([]);
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // تحميل الفاتورة
-    const foundInvoice = purchaseInvoices.find(inv => inv.id === parseInt(invoiceId));
+    // تحقق من تحميل البيانات أولاً
+    if (!purchaseInvoices || purchaseInvoices.length === 0) {
+      console.log('البيانات لم تُحمل بعد، منتظر...', {
+        purchaseInvoicesLength: purchaseInvoices?.length || 0,
+        invoiceId: invoiceId,
+        invoiceIdType: typeof invoiceId
+      });
+      return; // انتظار تحميل البيانات
+    }
+
+    console.log('محاولة العثور على الفاتورة:', {
+      invoiceId: invoiceId,
+      invoiceIdType: typeof invoiceId,
+      purchaseInvoicesCount: purchaseInvoices.length,
+      firstInvoiceId: purchaseInvoices[0]?.id,
+      firstInvoiceIdType: typeof purchaseInvoices[0]?.id
+    });
+
+    // تحميل الفاتورة - محاولة مقارنة بكلا النوعين
+    let foundInvoice = purchaseInvoices.find(inv => inv.id === parseInt(invoiceId));
     if (!foundInvoice) {
+      // محاولة أخرى مع مقارنة string
+      foundInvoice = purchaseInvoices.find(inv => inv.id.toString() === invoiceId.toString());
+    }
+    
+    if (!foundInvoice) {
+      console.error('الفاتورة غير موجودة:', {
+        invoiceId: invoiceId,
+        availableInvoiceIds: purchaseInvoices.map(inv => ({id: inv.id, type: typeof inv.id}))
+      });
       showError('الفاتورة غير موجودة');
+      setIsLoading(false); // انتهاء التحميل حتى لو بخطأ
       navigate('/purchases/manage');
       return;
     }
+
+    console.log('تم العثور على الفاتورة بنجاح:', foundInvoice.id);
     
     setInvoice(foundInvoice);
     
@@ -66,7 +97,8 @@ const NewPurchaseReturn = () => {
     });
     
     setReturnItems(itemsWithReturnInfo);
-  }, [invoiceId, purchaseInvoices, purchaseReturns, navigate, showError]);
+    setIsLoading(false); // انتهاء التحميل
+  }, [invoiceId, purchaseInvoices, purchaseReturns, navigate, showError, products]);
 
   const handleItemSelect = (index) => {
     const updated = [...returnItems];
@@ -155,11 +187,12 @@ const NewPurchaseReturn = () => {
     }
   };
 
-  if (!invoice) {
+  if (isLoading || !invoice) {
     return (
       <div className="max-w-7xl mx-auto p-4">
         <div className="text-center py-8">
-          <p className="text-gray-600">جاري التحميل...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">جاري تحميل بيانات الفاتورة...</p>
         </div>
       </div>
     );
