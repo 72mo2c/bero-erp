@@ -30,22 +30,27 @@ const NewPurchaseReturn = () => {
     
     setInvoice(foundInvoice);
     
-    // حساب الكميات المرتجعة مسبقاً لكل منتج
+    // حساب الكميات المرتجعة مسبقاً لكل منتج بفصل الكميات الأساسية والفرعية
     const itemsWithReturnInfo = foundInvoice.items.map(item => {
       const previousReturns = purchaseReturns.filter(ret => 
         ret.invoiceId === foundInvoice.id && ret.status !== 'cancelled'
       );
       
-      let totalReturnedQty = 0;
+      let totalReturnedMainQty = 0;
+      let totalReturnedSubQty = 0;
       previousReturns.forEach(ret => {
         const retItem = ret.items.find(i => i.productId === item.productId);
         if (retItem) {
-          totalReturnedQty += (retItem.quantity || 0) + (retItem.subQuantity || 0);
+          totalReturnedMainQty += (retItem.quantity || 0);
+          totalReturnedSubQty += (retItem.subQuantity || 0);
         }
       });
       
-      const originalQty = (item.quantity || 0) + (item.subQuantity || 0);
-      const availableQty = originalQty - totalReturnedQty;
+      const originalMainQty = item.quantity || 0;
+      const originalSubQty = item.subQuantity || 0;
+      const availableMainQty = originalMainQty - totalReturnedMainQty;
+      const availableSubQty = originalSubQty - totalReturnedSubQty;
+      const totalAvailableQty = availableMainQty + availableSubQty;
       
       // الحصول على اسم المنتج من قائمة المنتجات
       const product = products.find(p => p.id === parseInt(item.productId));
@@ -53,12 +58,15 @@ const NewPurchaseReturn = () => {
       return {
         productId: item.productId,
         productName: product?.name || item.productName || 'غير محدد',
-        originalQuantity: item.quantity || 0,
-        originalSubQuantity: item.subQuantity || 0,
+        originalQuantity: originalMainQty,
+        originalSubQuantity: originalSubQty,
         originalPrice: item.price || 0,
         originalSubPrice: item.subPrice || 0,
-        returnedQty: totalReturnedQty,
-        availableQty: availableQty,
+        returnedMainQty: totalReturnedMainQty,
+        returnedSubQty: totalReturnedSubQty,
+        availableMainQty: availableMainQty,
+        availableSubQty: availableSubQty,
+        availableQty: totalAvailableQty,
         returnQuantity: 0,
         returnSubQuantity: 0,
         selected: false
@@ -85,13 +93,21 @@ const NewPurchaseReturn = () => {
     const updated = [...returnItems];
     const item = updated[index];
     
-    updated[index][field] = Math.max(0, parseInt(value) || 0);
+    const newValue = Math.max(0, parseInt(value) || 0);
     
-    // التحقق من عدم تجاوز الكمية المتاحة
-    const totalReturn = updated[index].returnQuantity + updated[index].returnSubQuantity;
-    if (totalReturn > item.availableQty) {
-      showError(`الكمية المرتجعة تتجاوز الكمية المتاحة (${item.availableQty})`);
-      updated[index][field] = 0;
+    // التحقق من عدم تجاوز الكمية المتاحة لكل نوع على حدة
+    if (field === 'returnQuantity') {
+      if (newValue > item.availableMainQty) {
+        showError(`الكمية الأساسية المرتجعة تتجاوز المتاح (${item.availableMainQty})`);
+        return;
+      }
+      updated[index][field] = newValue;
+    } else if (field === 'returnSubQuantity') {
+      if (newValue > item.availableSubQty) {
+        showError(`الكمية الفرعية المرتجعة تتجاوز المتاح (${item.availableSubQty})`);
+        return;
+      }
+      updated[index][field] = newValue;
     }
     
     setReturnItems(updated);
@@ -269,16 +285,24 @@ const NewPurchaseReturn = () => {
                         )}
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
-                          {item.returnedQty}
-                        </span>
+                        <div>{item.returnedMainQty} أساسي</div>
+                        {item.returnedSubQty > 0 && (
+                          <div className="text-xs text-gray-500">{item.returnedSubQty} فرعي</div>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          item.availableQty > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        <div className={`text-xs font-semibold ${
+                          item.availableMainQty > 0 ? 'text-green-700' : 'text-gray-500'
                         }`}>
-                          {item.availableQty}
-                        </span>
+                          {item.availableMainQty} أساسي
+                        </div>
+                        {item.originalSubQuantity > 0 && (
+                          <div className={`text-xs font-semibold ${
+                            item.availableSubQty > 0 ? 'text-green-700' : 'text-gray-500'
+                          }`}>
+                            {item.availableSubQty} فرعي
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         {item.selected && (
@@ -289,7 +313,7 @@ const NewPurchaseReturn = () => {
                               onChange={(e) => handleQuantityChange(index, 'returnQuantity', e.target.value)}
                               className="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded"
                               min="0"
-                              max={item.availableQty}
+                              max={item.availableMainQty}
                               placeholder="أساسي"
                             />
                             {item.originalSubQuantity > 0 && (
@@ -299,7 +323,7 @@ const NewPurchaseReturn = () => {
                                 onChange={(e) => handleQuantityChange(index, 'returnSubQuantity', e.target.value)}
                                 className="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded"
                                 min="0"
-                                max={item.availableQty}
+                                max={item.availableSubQty}
                                 placeholder="فرعي"
                               />
                             )}

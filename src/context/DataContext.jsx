@@ -434,18 +434,30 @@ export const DataProvider = ({ children, orgId }) => {
         throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
       }
       
-      // خصم الكميات المرتجعة من المخزون
+      // خصم الكميات المرتجعة من المخزون بفصل الكميات الأساسية والفرعية
       const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
       if (productIndex !== -1) {
-        const newQuantity = (updatedProducts[productIndex].mainQuantity || 0) - returnQty;
+        const currentProduct = updatedProducts[productIndex];
         
-        if (newQuantity < 0) {
-          throw new Error(`الكمية المتوفرة في المخزون غير كافية`);
+        // خصم الكميات الأساسية والفرعية كل على حدة
+        const mainQtyToDeduct = item.quantity || 0;
+        const subQtyToDeduct = item.subQuantity || 0;
+        
+        const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQtyToDeduct;
+        const newSubQuantity = (currentProduct.subQuantity || 0) - subQtyToDeduct;
+        
+        if (newMainQuantity < 0) {
+          throw new Error(`الكمية الأساسية المتوفرة في المخزون غير كافية للمنتج`);
+        }
+        
+        if (newSubQuantity < 0 && subQtyToDeduct > 0) {
+          throw new Error(`الكمية الفرعية المتوفرة في المخزون غير كافية للمنتج`);
         }
         
         updatedProducts[productIndex] = {
-          ...updatedProducts[productIndex],
-          mainQuantity: newQuantity
+          ...currentProduct,
+          mainQuantity: newMainQuantity,
+          subQuantity: newSubQuantity
         };
       }
       
@@ -496,16 +508,20 @@ export const DataProvider = ({ children, orgId }) => {
       throw new Error('المرتجع غير موجود');
     }
     
-    // إعادة الكميات المرتجعة للمخزون
+    // إعادة الكميات المرتجعة للمخزون بفصل الكميات الأساسية والفرعية
     const updatedProducts = [...products];
     
     returnRecord.items.forEach(item => {
       const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
       if (productIndex !== -1) {
-        const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
+        const currentProduct = updatedProducts[productIndex];
+        const mainQtyToAdd = item.quantity || 0;
+        const subQtyToAdd = item.subQuantity || 0;
+        
         updatedProducts[productIndex] = {
-          ...updatedProducts[productIndex],
-          mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) + returnQty
+          ...currentProduct,
+          mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
+          subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
         };
       }
     });
@@ -514,9 +530,27 @@ export const DataProvider = ({ children, orgId }) => {
     saveData('bero_products', updatedProducts);
     
     // حذف المرتجع
-    const updated = purchaseReturns.filter(ret => ret.id !== returnId);
-    setPurchaseReturns(updated);
-    saveData('bero_purchase_returns', updated);
+    const updatedReturns = purchaseReturns.filter(ret => ret.id !== returnId);
+    setPurchaseReturns(updatedReturns);
+    saveData('bero_purchase_returns', updatedReturns);
+    
+    // تحديث حالة hasReturns في الفاتورة إذا لم تعد هناك مرتجعات
+    const invoiceId = returnRecord.invoiceId;
+    const remainingReturns = updatedReturns.filter(ret => 
+      ret.invoiceId === invoiceId && ret.status !== 'cancelled'
+    );
+    
+    if (remainingReturns.length === 0) {
+      const updatedInvoices = purchaseInvoices.map(inv => {
+        if (inv.id === invoiceId) {
+          return { ...inv, hasReturns: false };
+        }
+        return inv;
+      });
+      setPurchaseInvoices(updatedInvoices);
+      saveData('bero_purchase_invoices', updatedInvoices);
+    }
+  };
   };
 
   // ==================== دوال فواتير المبيعات ====================

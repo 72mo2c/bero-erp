@@ -69,33 +69,50 @@ const PurchaseReturns = () => {
     return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${s.class}`}>{s.text}</span>;
   };
 
-  // حساب الإحصائيات
+  // حساب الإحصائيات بتفصيل حسب الحالة
+  const completedReturns = purchaseReturns.filter(ret => ret.status === 'completed');
+  const pendingReturns = purchaseReturns.filter(ret => ret.status === 'pending');
+  const cancelledReturns = purchaseReturns.filter(ret => ret.status === 'cancelled');
+  
   const totalReturns = purchaseReturns.length;
-  const totalAmount = purchaseReturns.reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+  const totalCompletedReturns = completedReturns.length;
+  const totalAmount = completedReturns.reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+  const totalPendingAmount = pendingReturns.reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
 
   return (
     <div className="max-w-7xl mx-auto p-4">
       <h2 className="text-xl font-bold text-gray-800 mb-4">مرتجعات المشتريات</h2>
 
       {/* بطاقات الإحصائيات */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-4 rounded-lg shadow-md">
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm opacity-90">إجمالي المرتجعات</p>
               <p className="text-3xl font-bold mt-1">{totalReturns}</p>
+              <p className="text-xs opacity-75">المكتمل: {totalCompletedReturns}</p>
             </div>
             <FaUndo className="text-4xl opacity-50" />
           </div>
         </div>
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 rounded-lg shadow-md">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-lg shadow-md">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm opacity-90">إجمالي المبلغ المرتجع</p>
+              <p className="text-sm opacity-90">المبلغ المكتمل</p>
               <p className="text-3xl font-bold mt-1">{totalAmount.toFixed(2)}</p>
               <p className="text-xs opacity-75">دينار عراقي</p>
             </div>
             <FaFileInvoice className="text-4xl opacity-50" />
+          </div>
+        </div>
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-4 rounded-lg shadow-md">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm opacity-90">معلق (منتظر)</p>
+              <p className="text-3xl font-bold mt-1">{pendingReturns.length}</p>
+              <p className="text-xs opacity-75">{totalPendingAmount.toFixed(2)} د.ع</p>
+            </div>
+            <FaSearch className="text-4xl opacity-50" />
           </div>
         </div>
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-lg shadow-md">
@@ -103,7 +120,7 @@ const PurchaseReturns = () => {
             <div>
               <p className="text-sm opacity-90">متوسط المرتجع</p>
               <p className="text-3xl font-bold mt-1">
-                {totalReturns > 0 ? (totalAmount / totalReturns).toFixed(2) : '0.00'}
+                {totalCompletedReturns > 0 ? (totalAmount / totalCompletedReturns).toFixed(2) : '0.00'}
               </p>
               <p className="text-xs opacity-75">دينار عراقي</p>
             </div>

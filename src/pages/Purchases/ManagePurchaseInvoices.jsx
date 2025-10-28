@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 
 const ManagePurchaseInvoices = () => {
   const navigate = useNavigate();
-  const { purchaseInvoices, suppliers, products, warehouses, deletePurchaseInvoice } = useData();
+  const { purchaseInvoices, suppliers, products, warehouses, purchaseReturns, deletePurchaseInvoice } = useData();
   const { showSuccess, showError } = useNotification();
   const { settings } = useSystemSettings();
   const { hasPermission } = useAuth();
@@ -186,13 +186,14 @@ const ManagePurchaseInvoices = () => {
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">نوع الدفع</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">المجموع</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">عدد المنتجات</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">المرتجعات</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-3 py-8 text-center text-gray-500">
+                  <td colSpan="8" className="px-3 py-8 text-center text-gray-500">
                     <FaFileInvoice className="mx-auto mb-2 text-3xl text-gray-300" />
                     <p>لا توجد فواتير</p>
                   </td>
@@ -200,6 +201,14 @@ const ManagePurchaseInvoices = () => {
               ) : (
                 filteredInvoices.map((invoice) => {
                   const supplier = suppliers.find(s => s.id === parseInt(invoice.supplierId));
+                  
+                  // حساب عدد المرتجعات للفاتورة
+                  const invoiceReturns = purchaseReturns.filter(ret => 
+                    ret.invoiceId === invoice.id && ret.status !== 'cancelled'
+                  );
+                  const hasActiveReturns = invoiceReturns.length > 0;
+                  const totalReturnedAmount = invoiceReturns.reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+                  
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50">
                       <td className="px-3 py-2 font-semibold text-blue-600">
@@ -228,6 +237,22 @@ const ManagePurchaseInvoices = () => {
                         <span className="px-2 py-1 bg-gray-100 rounded-full text-xs">
                           {invoice.items?.length || 0}
                         </span>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {hasActiveReturns ? (
+                          <div className="space-y-1">
+                            <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+                              {invoiceReturns.length} مرتجع
+                            </span>
+                            <div className="text-xs text-red-600">
+                              {totalReturnedAmount.toFixed(2)} د.ع
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs">
+                            لا يوجد
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex justify-center gap-2">
