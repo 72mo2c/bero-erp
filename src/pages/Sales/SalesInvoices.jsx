@@ -106,9 +106,24 @@ const SalesInvoices = () => {
     {
       header: 'المجموع',
       accessor: 'total',
-      render: (row) => (
-        <span className="font-bold text-green-600">{(row.total || 0).toFixed(2)} د.ع</span>
-      )
+      render: (row) => {
+        const hasDiscount = (row.discountAmount || 0) > 0;
+        return (
+          <div className="text-right">
+            {hasDiscount && (
+              <div className="text-xs text-gray-500 line-through">
+                {(row.subtotal || row.total).toFixed(2)} د.ع
+              </div>
+            )}
+            <span className="font-bold text-green-600">{(row.total || 0).toFixed(2)} د.ع</span>
+            {hasDiscount && (
+              <div className="text-xs text-red-600 font-medium">
+                خصم: {(row.discountAmount || 0).toFixed(2)} د.ع
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       header: 'الحالة',
@@ -301,6 +316,13 @@ const SalesInvoices = () => {
                   selectedInvoice.items.map((item, index) => {
                     const product = products.find(p => p.id === parseInt(item.productId));
                     const warehouse = warehouses.find(w => w.id === product?.warehouseId);
+                    
+                    // حساب إجمالي السطر بشكل صحيح
+                    const mainTotal = (item.mainQuantity || 0) * (item.mainPrice || 0);
+                    const subTotal = (item.subQuantity || 0) * (item.subPrice || 0);
+                    const itemDiscount = item.discount || 0;
+                    const lineTotal = Math.max(0, mainTotal + subTotal - itemDiscount);
+                    
                     return (
                       <div key={index} className="flex justify-between items-center bg-white p-3 rounded">
                         <div className="flex-1">
@@ -308,12 +330,18 @@ const SalesInvoices = () => {
                             {product?.name || 'غير محدد'} - {warehouse?.name || 'غير محدد'}
                           </span>
                           <div className="text-xs text-gray-600">
-                            {item.quantity} × {parseFloat(item.price).toFixed(2)} د.ع
+                            {(item.mainQuantity || 0)} × {parseFloat(item.mainPrice || 0).toFixed(2)} د.ع
+                            {item.subQuantity > 0 && (
+                              <span className="ml-2">+ {item.subQuantity} × {parseFloat(item.subPrice || 0).toFixed(2)} د.ع (فرعي)</span>
+                            )}
+                            {item.discount > 0 && (
+                              <span className="ml-2 text-red-600">- خصم: {parseFloat(item.discount || 0).toFixed(2)} د.ع</span>
+                            )}
                           </div>
                         </div>
                         <div className="text-left">
                           <div className="font-bold text-green-600">
-                            {(item.quantity * item.price).toFixed(2)} د.ع
+                            {lineTotal.toFixed(2)} د.ع
                           </div>
                         </div>
                       </div>
@@ -335,11 +363,25 @@ const SalesInvoices = () => {
 
             {/* المجموع */}
             <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-gray-800">المجموع الإجمالي:</span>
-                <span className="text-3xl font-bold text-green-600">
-                  {(selectedInvoice.total || 0).toFixed(2)} د.ع
-                </span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold text-gray-700">المجموع الفرعي:</span>
+                  <span className="text-sm font-medium text-gray-600">{(selectedInvoice.subtotal || 0).toFixed(2)} د.ع</span>
+                </div>
+                
+                {(selectedInvoice.discountAmount || 0) > 0 && (
+                  <div className="flex justify-between items-center pt-1 border-t border-green-200">
+                    <span className="text-sm font-semibold text-gray-700">الخصم:</span>
+                    <span className="text-sm font-medium text-red-600">-{(selectedInvoice.discountAmount || 0).toFixed(2)} د.ع</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-center pt-2 border-t border-green-200">
+                  <span className="text-lg font-bold text-gray-800">المجموع الإجمالي:</span>
+                  <span className="text-3xl font-bold text-green-600">
+                    {(selectedInvoice.total || 0).toFixed(2)} د.ع
+                  </span>
+                </div>
               </div>
             </div>
           </div>

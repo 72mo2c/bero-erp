@@ -256,7 +256,7 @@ export const printInvoiceDirectly = (invoiceData, type = 'purchase') => {
               const warehouse = warehouses?.find(w => w.id === product?.warehouseId);
               
               // حساب إجمالي الصف بشكل صحيح (كمية أساسية + فرعية - خصم العنصر)
-              const mainTotal = (item.quantity || 0) * (item.price || 0);
+              const mainTotal = (item.mainQuantity || 0) * (item.mainPrice || 0);
               const subTotal = (item.subQuantity || 0) * (item.subPrice || 0);
               const itemDiscount = item.discount || 0;
               const lineTotal = Math.max(0, mainTotal + subTotal - itemDiscount);
@@ -266,8 +266,8 @@ export const printInvoiceDirectly = (invoiceData, type = 'purchase') => {
                   <td>${index + 1}</td>
                   <td>${product?.name || '-'}</td>
                   <td>${warehouse?.name || '-'}</td>
-                  <td>${item.quantity || 0}${item.subQuantity > 0 ? ` + ${item.subQuantity}` : ''}</td>
-                  <td>${parseFloat(item.price || 0).toFixed(2)} د.ع${item.subPrice > 0 ? ` (فرعي: ${parseFloat(item.subPrice || 0).toFixed(2)})` : ''}</td>
+                  <td>${item.mainQuantity || 0}${item.subQuantity > 0 ? ` + ${item.subQuantity} (فرعي)` : ''}</td>
+                  <td>${parseFloat(item.mainPrice || 0).toFixed(2)} د.ع${item.subPrice > 0 ? ` (فرعي: ${parseFloat(item.subPrice || 0).toFixed(2)})` : ''}</td>
                   <td>${lineTotal.toFixed(2)} د.ع${item.discount > 0 ? ` (بعد خصم: ${item.discount.toFixed(2)})` : ''}</td>
                 </tr>
               `;

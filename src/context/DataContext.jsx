@@ -530,7 +530,7 @@ export const DataProvider = ({ children, orgId }) => {
           throw new Error(`المنتج غير موجود`);
         }
         
-        const requestedQty = parseInt(item.quantity) || 0;
+        const requestedQty = parseInt(item.mainQuantity || 0) + parseInt(item.subQuantity || 0);
         const availableQty = product.mainQuantity || 0;
         
         if (requestedQty > availableQty) {
@@ -556,7 +556,12 @@ export const DataProvider = ({ children, orgId }) => {
       date: new Date().toISOString(), 
       ...invoice,
       items: enrichedItems,
-      customerId: parseInt(invoice.customerId) // تحويل إلى رقم
+      customerId: parseInt(invoice.customerId), // تحويل إلى رقم
+      // حفظ بيانات الخصم بشكل صريح
+      discountType: invoice.discountType || 'percentage',
+      discountValue: invoice.discountValue || 0,
+      discountAmount: invoice.discountAmount || 0,
+      subtotal: invoice.subtotal || 0
     };
     const updated = [...salesInvoices, newInvoice];
     setSalesInvoices(updated);
@@ -569,7 +574,9 @@ export const DataProvider = ({ children, orgId }) => {
       invoice.items.forEach(item => {
         const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
         if (productIndex !== -1) {
-          const newQuantity = (updatedProducts[productIndex].mainQuantity || 0) - parseInt(item.quantity);
+          const mainQty = parseInt(item.mainQuantity || 0);
+          const subQty = parseInt(item.subQuantity || 0);
+          const newQuantity = (updatedProducts[productIndex].mainQuantity || 0) - mainQty - subQty;
           
           // تأكيد نهائي لمنع الكميات السالبة
           if (newQuantity < 0) {

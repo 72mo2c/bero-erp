@@ -276,8 +276,8 @@ const NewSalesInvoice = () => {
     return items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   };
 
-  // حساب قيمة الخصم
-  const calculateDiscountAmount = () => {
+  // حساب قيمة الخصم (إعادة تسمية لتجنب إعادة الاستدعاء اللانهائي)
+  const calculateInvoiceDiscountAmount = () => {
     const subTotal = calculateSubTotal();
     if (formData.discountType === 'percentage') {
       return (subTotal * (formData.discountValue / 100));
@@ -289,7 +289,7 @@ const NewSalesInvoice = () => {
   // حساب الإجمالي بعد الخصم
   const calculateTotal = () => {
     const subTotal = calculateSubTotal();
-    const discountAmount = calculateDiscountAmount();
+    const discountAmount = calculateInvoiceDiscountAmount();
     return Math.max(0, subTotal - discountAmount);
   };
 
@@ -426,7 +426,7 @@ const NewSalesInvoice = () => {
         total: calculateItemTotal(item)
       }));
 
-      const discountAmount = calculateDiscountAmount();
+      const discountAmount = calculateInvoiceDiscountAmount();
       
       const invoiceData = {
         ...formData,
@@ -439,7 +439,7 @@ const NewSalesInvoice = () => {
       };
 
       const newInvoice = addSalesInvoice(invoiceData);
-      showSuccess(`تم حفظ فاتورة المبيعات بنجاح! الإجمالي: ${calculateTotal().toFixed(2)} ج.م`);
+      showSuccess(`تم حفظ فاتورة المبيعات بنجاح! الإجمالي: ${calculateTotal().toFixed(2)} د.ع`);
 
       if (shouldPrint) {
         // الطباعة المباشرة
@@ -787,7 +787,7 @@ const NewSalesInvoice = () => {
                 </div>
                 {formData.discountValue > 0 && (
                   <div className="text-xs text-gray-600 text-center">
-                    قيمة الخصم: {calculateDiscountAmount().toFixed(2)} ج.م
+                    قيمة الخصم: {calculateInvoiceDiscountAmount().toFixed(2)} د.ع
                   </div>
                 )}
               </div>
@@ -797,19 +797,19 @@ const NewSalesInvoice = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-semibold text-gray-700">المجموع الفرعي:</span>
-                    <span className="text-sm font-medium text-gray-600">{calculateSubTotal().toFixed(2)} ج.م</span>
+                    <span className="text-sm font-medium text-gray-600">{calculateSubTotal().toFixed(2)} د.ع</span>
                   </div>
                   
                   {formData.discountValue > 0 && (
                     <div className="flex justify-between items-center pt-1 border-t border-blue-200">
                       <span className="text-sm font-semibold text-gray-700">الخصم:</span>
-                      <span className="text-sm font-medium text-red-600">-{calculateDiscountAmount().toFixed(2)} ج.م</span>
+                      <span className="text-sm font-medium text-red-600">-{calculateInvoiceDiscountAmount().toFixed(2)} د.ع</span>
                     </div>
                   )}
                   
                   <div className="flex justify-between items-center pt-2 border-t border-blue-200">
                     <span className="text-sm font-semibold text-gray-700">المجموع الكلي:</span>
-                    <span className="text-lg font-bold text-blue-700">{calculateTotal().toFixed(2)} ج.م</span>
+                    <span className="text-lg font-bold text-blue-700">{calculateTotal().toFixed(2)} د.ع</span>
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 text-center mt-2">
