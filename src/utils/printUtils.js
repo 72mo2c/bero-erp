@@ -8,7 +8,7 @@
  * @param {string} type - نوع الفاتورة (purchase/sales)
  */
 export const printInvoiceDirectly = (invoiceData, type = 'purchase') => {
-  const { formData, items, total, suppliers, customers, products, warehouses, paymentTypes } = invoiceData;
+  const { formData, items, total, subtotal, discountAmount, suppliers, customers, products, warehouses, paymentTypes } = invoiceData;
   
   // معلومات الشركة
   const companyInfo = {
@@ -254,16 +254,21 @@ export const printInvoiceDirectly = (invoiceData, type = 'purchase') => {
             ${items.map((item, index) => {
               const product = products?.find(p => p.id === parseInt(item.productId));
               const warehouse = warehouses?.find(w => w.id === product?.warehouseId);
-              const lineTotal = item.quantity * (item.price || 0);
+              
+              // حساب إجمالي الصف بشكل صحيح (كمية أساسية + فرعية - خصم العنصر)
+              const mainTotal = (item.quantity || 0) * (item.price || 0);
+              const subTotal = (item.subQuantity || 0) * (item.subPrice || 0);
+              const itemDiscount = item.discount || 0;
+              const lineTotal = Math.max(0, mainTotal + subTotal - itemDiscount);
               
               return `
                 <tr>
                   <td>${index + 1}</td>
                   <td>${product?.name || '-'}</td>
                   <td>${warehouse?.name || '-'}</td>
-                  <td>${item.quantity}</td>
-                  <td>${parseFloat(item.price || 0).toFixed(2)} ج.م</td>
-                  <td>${lineTotal.toFixed(2)} ج.م</td>
+                  <td>${item.quantity || 0}${item.subQuantity > 0 ? ` + ${item.subQuantity}` : ''}</td>
+                  <td>${parseFloat(item.price || 0).toFixed(2)} د.ع${item.subPrice > 0 ? ` (فرعي: ${parseFloat(item.subPrice || 0).toFixed(2)})` : ''}</td>
+                  <td>${lineTotal.toFixed(2)} د.ع${item.discount > 0 ? ` (بعد خصم: ${item.discount.toFixed(2)})` : ''}</td>
                 </tr>
               `;
             }).join('')}
@@ -274,11 +279,17 @@ export const printInvoiceDirectly = (invoiceData, type = 'purchase') => {
         <div class="totals-section">
           <div class="total-row">
             <span>المجموع الفرعي:</span>
-            <span>${(total || 0).toFixed(2)} ج.م</span>
+            <span>${(subtotal || 0).toFixed(2)} د.ع</span>
           </div>
+          ${(discountAmount || 0) > 0 ? `
+          <div class="total-row">
+            <span>الخصم:</span>
+            <span>-${(discountAmount || 0).toFixed(2)} د.ع</span>
+          </div>
+          ` : ''}
           <div class="total-row grand-total">
             <span>الإجمالي النهائي:</span>
-            <span>${(total || 0).toFixed(2)} ج.م</span>
+            <span>${(total || 0).toFixed(2)} د.ع</span>
           </div>
         </div>
 

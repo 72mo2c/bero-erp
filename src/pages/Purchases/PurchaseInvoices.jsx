@@ -53,9 +53,30 @@ const PurchaseInvoices = () => {
       }
     },
     {
+      header: 'الخصم',
+      accessor: 'discountAmount',
+      render: (row) => {
+        const discountAmount = row.discountAmount || 0;
+        return discountAmount > 0 ? (
+          <span className="text-red-600 font-semibold">-{discountAmount.toFixed(2)} د.ع</span>
+        ) : (
+          <span className="text-gray-400">لا يوجد</span>
+        );
+      }
+    },
+    {
       header: 'المجموع',
       accessor: 'total',
-      render: (row) => `${row.total || 0} د.ع`
+      render: (row) => {
+        const total = row.total || 0;
+        const subtotal = row.subtotal || 0;
+        return (
+          <div>
+            <div className="text-xs text-gray-500">{subtotal.toFixed(2)} د.ع</div>
+            <div className="font-semibold text-blue-600">{total.toFixed(2)} د.ع</div>
+          </div>
+        );
+      }
     },
     {
       header: 'الحالة',

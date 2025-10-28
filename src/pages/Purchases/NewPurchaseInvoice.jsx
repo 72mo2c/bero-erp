@@ -236,32 +236,39 @@ const NewPurchaseInvoice = () => {
     return mainTotal + subTotal;
   };
 
-  // حساب إجمالي العنصر بعد الخصم
+  // حساب إجمالي العنصر بعد خصم العنصر
   const calculateItemTotal = (item) => {
     const totalWithoutDiscount = calculateItemTotalWithoutDiscount(item);
     const itemDiscount = item.discount || 0;
     return Math.max(0, totalWithoutDiscount - itemDiscount);
   };
 
-  const calculateSubTotal = () => {
+  // حساب إجمالي العناصر بعد خصم كل عنصر
+  const calculateItemsTotal = () => {
     return items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   };
 
-  // حساب قيمة الخصم
-  const calculateDiscountAmount = () => {
+  const calculateSubTotal = () => {
+    return calculateItemsTotal();
+  };
+
+  // حساب قيمة الخصم الإضافي على الفاتورة
+  const calculateInvoiceDiscountAmount = () => {
     const subTotal = calculateSubTotal();
+    const discountValue = parseFloat(formData.discountValue) || 0;
+    
     if (formData.discountType === 'percentage') {
-      return (subTotal * (formData.discountValue / 100));
+      return (subTotal * (discountValue / 100));
     } else {
-      return parseFloat(formData.discountValue) || 0;
+      return Math.min(discountValue, subTotal); // لا يتجاوز المجموع الفرعي
     }
   };
 
-  // حساب الإجمالي بعد الخصم
+  // حساب الإجمالي بعد الخصم الإضافي
   const calculateTotal = () => {
     const subTotal = calculateSubTotal();
-    const discountAmount = calculateDiscountAmount();
-    return Math.max(0, subTotal - discountAmount);
+    const invoiceDiscountAmount = calculateInvoiceDiscountAmount();
+    return Math.max(0, subTotal - invoiceDiscountAmount);
   };
 
   // التحقق الشامل من البيانات
@@ -278,18 +285,18 @@ const NewPurchaseInvoice = () => {
       errors.date = 'يجب إدخال تاريخ الفاتورة';
     }
     
-    // التحقق من الخصم
+    // التحقق من الخصم الإضافي
     if (formData.discountValue < 0) {
-      errors.discount = 'قيمة الخصم لا يمكن أن تكون سالبة';
+      errors.discount = 'قيمة الخصم الإضافي لا يمكن أن تكون سالبة';
     }
     
     if (formData.discountType === 'percentage' && formData.discountValue > 100) {
-      errors.discount = 'نسبة الخصم لا يمكن أن تزيد عن 100%';
+      errors.discount = 'نسبة الخصم الإضافي لا يمكن أن تزيد عن 100%';
     }
     
-    const discountAmount = calculateDiscountAmount();
-    if (discountAmount > calculateSubTotal()) {
-      errors.discount = 'قيمة الخصم لا يمكن أن تزيد عن المجموع الكلي';
+    const invoiceDiscountAmount = calculateInvoiceDiscountAmount();
+    if (invoiceDiscountAmount > calculateSubTotal()) {
+      errors.discount = 'قيمة الخصم الإضافي لا يمكن أن تزيد عن المجموع الفرعي';
     }
     
     // التحقق من المنتجات
@@ -374,14 +381,14 @@ const NewPurchaseInvoice = () => {
     }
 
     try {
-      const discountAmount = calculateDiscountAmount();
+      const invoiceDiscountAmount = calculateInvoiceDiscountAmount();
       
       const invoiceData = {
         ...formData,
         date: `${formData.date}T${formData.time}:00`,
         items,
         subtotal: calculateSubTotal(),
-        discountAmount: discountAmount,
+        discountAmount: invoiceDiscountAmount,
         total: calculateTotal(),
         status: 'completed'
       };
@@ -532,7 +539,7 @@ const NewPurchaseInvoice = () => {
                 <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 w-20">كمية فرعية</th>
                 <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 w-24">سعر أساسي</th>
                 <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 w-24">سعر فرعي</th>
-                <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 w-24">الخصم</th>
+                <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 w-24">خصم العنصر</th>
                 <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 w-24">الإجمالي</th>
                 <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 w-16">حذف</th>
               </tr>
@@ -694,11 +701,11 @@ const NewPurchaseInvoice = () => {
 
             {/* الخصم والمجموع */}
             <div className="space-y-3">
-              {/* قسم الخصم */}
+              {/* قسم الخصم الإضافي على الفاتورة */}
               <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                 <div className="flex items-center gap-2 mb-2">
                   <FaPercent className="text-yellow-600" />
-                  <span className="text-sm font-semibold text-gray-700">الخصم</span>
+                  <span className="text-sm font-semibold text-gray-700">الخصم الإضافي على الفاتورة</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <select
@@ -723,7 +730,7 @@ const NewPurchaseInvoice = () => {
                 </div>
                 {formData.discountValue > 0 && (
                   <div className="text-xs text-gray-600 text-center">
-                    قيمة الخصم: {calculateDiscountAmount().toFixed(2)} ج.م
+                    قيمة الخصم الإضافي: {calculateInvoiceDiscountAmount().toFixed(2)} د.ع
                   </div>
                 )}
               </div>
@@ -733,23 +740,23 @@ const NewPurchaseInvoice = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-semibold text-gray-700">المجموع الفرعي:</span>
-                    <span className="text-sm font-medium text-gray-600">{calculateSubTotal().toFixed(2)} ج.م</span>
+                    <span className="text-sm font-medium text-gray-600">{calculateSubTotal().toFixed(2)} د.ع</span>
                   </div>
                   
                   {formData.discountValue > 0 && (
                     <div className="flex justify-between items-center pt-1 border-t border-blue-200">
-                      <span className="text-sm font-semibold text-gray-700">الخصم:</span>
-                      <span className="text-sm font-medium text-red-600">-{calculateDiscountAmount().toFixed(2)} ج.م</span>
+                      <span className="text-sm font-semibold text-gray-700">الخصم الإضافي:</span>
+                      <span className="text-sm font-medium text-red-600">-{calculateInvoiceDiscountAmount().toFixed(2)} د.ع</span>
                     </div>
                   )}
                   
                   <div className="flex justify-between items-center pt-2 border-t border-blue-200">
                     <span className="text-sm font-semibold text-gray-700">المجموع الكلي:</span>
-                    <span className="text-lg font-bold text-blue-700">{calculateTotal().toFixed(2)} ج.م</span>
+                    <span className="text-lg font-bold text-blue-700">{calculateTotal().toFixed(2)} د.ع</span>
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 text-center mt-2">
-                  عدد المنتجات: {items.length}
+                  عدد المنتجات: {items.length} | خصم العناصر: {(items.reduce((sum, item) => sum + (item.discount || 0), 0)).toFixed(2)} د.ع
                 </div>
               </div>
             </div>
