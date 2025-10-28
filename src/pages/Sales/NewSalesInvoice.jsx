@@ -316,7 +316,7 @@ const NewSalesInvoice = () => {
       errors.discount = 'نسبة الخصم لا يمكن أن تزيد عن 100%';
     }
     
-    const discountAmount = calculateDiscountAmount();
+    const discountAmount = calculateInvoiceDiscountAmount();
     if (discountAmount > calculateSubTotal()) {
       errors.discount = 'قيمة الخصم لا يمكن أن تزيد عن المجموع الكلي';
     }
