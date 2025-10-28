@@ -1,0 +1,487 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ======================================
+   Premium Orange Theme - Bero System
+   ====================================== */
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-orange-50 via-white to-orange-50 text-gray-900;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+}
+
+@layer components {
+  /* ============ Premium Card Styles ============ */
+  .card {
+    @apply bg-white rounded-2xl shadow-lg p-6 transition-all duration-300;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 247, 237, 0.95) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(251, 146, 60, 0.1);
+  }
+
+  .card:hover {
+    @apply shadow-2xl;
+    transform: translateY(-4px);
+    border: 1px solid rgba(251, 146, 60, 0.3);
+  }
+
+  /* ============ Glass Effect Card ============ */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(251, 146, 60, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(251, 146, 60, 0.15);
+  }
+
+  /* ============ Premium Buttons ============ */
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform;
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(249, 115, 22, 0.5);
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300;
+    background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+    color: white;
+  }
+
+  .btn-secondary:hover {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    transform: translateY(-2px);
+  }
+
+  .btn-success {
+    @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300;
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+    color: white;
+  }
+
+  .btn-success:hover {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    transform: translateY(-2px);
+  }
+
+  .btn-danger {
+    @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300;
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    color: white;
+  }
+
+  .btn-danger:hover {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    transform: translateY(-2px);
+  }
+
+  /* ============ Premium Input Fields ============ */
+  .input-field {
+    @apply w-full px-4 py-3 border-2 border-orange-100 rounded-xl transition-all duration-300;
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .input-field:focus {
+    @apply outline-none border-orange-400;
+    box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.1);
+    background: white;
+  }
+
+  .label {
+    @apply block text-sm font-semibold text-gray-700 mb-2;
+  }
+
+  /* ============ Premium Sidebar ============ */
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl transition-all duration-300 cursor-pointer relative overflow-hidden;
+  }
+
+  .sidebar-link::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(251, 146, 60, 0.1) 0%, rgba(251, 146, 60, 0.05) 100%);
+    transition: width 0.3s ease;
+  }
+
+  .sidebar-link:hover::before {
+    width: 100%;
+  }
+
+  .sidebar-link:hover {
+    @apply text-orange-600;
+    transform: translateX(-4px);
+  }
+
+  .sidebar-link-active {
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+    @apply text-white shadow-lg;
+  }
+
+  .sidebar-link-active:hover {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    @apply text-white;
+  }
+
+  /* ============ Premium Stats Card ============ */
+  .stats-card {
+    @apply bg-white rounded-2xl shadow-lg overflow-hidden transition-all duration-300 cursor-pointer;
+    border: 1px solid rgba(251, 146, 60, 0.1);
+  }
+
+  .stats-card:hover {
+    @apply shadow-2xl;
+    border: 1px solid rgba(251, 146, 60, 0.3);
+  }
+
+  /* ============ Gradient Backgrounds ============ */
+  .gradient-orange {
+    background: linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
+  }
+
+  .gradient-orange-light {
+    background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+  }
+
+  .gradient-orange-soft {
+    background: linear-gradient(135deg, rgba(251, 146, 60, 0.1) 0%, rgba(249, 115, 22, 0.05) 100%);
+  }
+}
+
+/* ============ RTL Support ============ */
+[dir="rtl"] {
+  direction: rtl;
+}
+
+/* ============ Premium Scrollbar ============ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
+  border-radius: 10px;
+  border: 2px solid #fff7ed;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+}
+
+/* ============ Loading Spinner (Static) ============ */
+.loading-spinner {
+  border: 4px solid #fed7aa;
+  border-top: 4px solid #f97316;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+}
+
+/* ============ Glow Effect ============ */
+.glow-orange {
+  box-shadow: 0 0 20px rgba(251, 146, 60, 0.5),
+              0 0 40px rgba(249, 115, 22, 0.3),
+              0 0 60px rgba(234, 88, 12, 0.2);
+}
+
+/* ============ Print Styles ============ */
+@media print {
+  /* إخفاء العناصر غير الضرورية */
+  .no-print,
+  nav,
+  .sidebar,
+  button,
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-success,
+  .btn-danger,
+  header,
+  footer:not(.print-footer),
+  .print-controls,
+  input[type="date"],
+  input[type="text"],
+  select,
+  .filter-section {
+    display: none !important;
+  }
+
+  /* إعادة تعيين التصميم للطباعة */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0;
+    padding: 0;
+    font-size: 12pt;
+  }
+
+  /* تنسيق الصفحة */
+  @page {
+    size: A4 portrait;
+    margin: 1.5cm;
+  }
+
+  /* بطاقات بسيطة للطباعة */
+  .card,
+  .glass-card,
+  .stats-card {
+    background: white !important;
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin-bottom: 15px;
+  }
+
+  /* الجداول */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 2px solid #000 !important;
+    page-break-inside: auto;
+  }
+
+  table thead {
+    background: #000 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  table th,
+  table td {
+    border: 1px solid #000 !important;
+    padding: 8px !important;
+    text-align: right !important;
+    font-size: 11pt;
+  }
+
+  table tbody tr:nth-child(even) {
+    background: #f9f9f9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  table tr {
+    page-break-inside: avoid;
+  }
+
+  /* العناوين */
+  h1, h2, h3, h4, h5, h6 {
+    color: black !important;
+    page-break-after: avoid;
+    font-weight: bold !important;
+  }
+
+  h1 {
+    font-size: 24pt;
+    margin-bottom: 10px;
+  }
+
+  h2 {
+    font-size: 18pt;
+    margin-bottom: 8px;
+  }
+
+  h3 {
+    font-size: 14pt;
+    margin-bottom: 6px;
+  }
+
+  /* بطاقات الإحصائيات */
+  .stats-card,
+  [class*="gradient"] {
+    background: white !important;
+    color: black !important;
+    border: 2px solid #000 !important;
+    padding: 15px !important;
+    margin: 10px 0 !important;
+  }
+
+  /* إزالة الألوان الزاهية */
+  [class*="bg-blue"],
+  [class*="bg-green"],
+  [class*="bg-purple"],
+  [class*="bg-orange"],
+  [class*="bg-red"],
+  [class*="gradient"] {
+    background: white !important;
+    color: black !important;
+    border: 1px solid #000 !important;
+  }
+
+  /* النصوص الملونة */
+  [class*="text-blue"],
+  [class*="text-green"],
+  [class*="text-purple"],
+  [class*="text-orange"],
+  [class*="text-red"],
+  [class*="text-gray"] {
+    color: black !important;
+  }
+
+  /* الروابط */
+  a {
+    color: black !important;
+    text-decoration: none !important;
+  }
+
+  /* تجنب قطع الصفحات */
+  .page-break-avoid {
+    page-break-inside: avoid;
+  }
+
+  /* رأس الصفحة للطباعة */
+  .print-header {
+    text-align: center;
+    border-bottom: 2px solid #000;
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+  }
+
+  /* تذييل الصفحة للطباعة */
+  .print-footer {
+    text-align: center;
+    border-top: 2px solid #000;
+    padding-top: 15px;
+    margin-top: 30px;
+    font-size: 10pt;
+    color: #666 !important;
+  }
+
+  /* الشعارات والأيقونات */
+  svg,
+  img:not(.print-logo) {
+    display: none !important;
+  }
+
+  .print-logo {
+    max-width: 150px;
+    max-height: 80px;
+  }
+
+  /* تنسيق خاص للعناصر المهمة */
+  .print-highlight {
+    font-weight: bold !important;
+    font-size: 14pt !important;
+  }
+
+  /* تواريخ الطباعة */
+  .print-date {
+    font-size: 9pt;
+    color: #999 !important;
+    text-align: center;
+    margin-top: 10px;
+  }
+}
+
+/* ============ Toast Animations ============ */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-slideOut {
+  animation: slideOut 0.3s ease-in;
+}
+
+/* ============ Mobile Optimization ============ */
+@media (max-width: 768px) {
+  .card {
+    @apply rounded-xl p-4;
+  }
+}
+
+/* الأنماط الخاصة بالتحريك */
+@keyframes spin-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1.5);
+  }
+}
+
+@keyframes progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 1s linear infinite;
+}
+
+.animate-wave {
+  animation: wave 0.8s ease-in-out infinite;
+}
+
+.animate-progress {
+  animation: progress 1.5s ease-in-out infinite;
+}
+
+/* تدرج لوني للنص */
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

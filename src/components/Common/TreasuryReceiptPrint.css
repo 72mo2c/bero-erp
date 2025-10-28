@@ -1,0 +1,153 @@
+/* ======================================
+   Treasury Receipt Print Styles
+   ====================================== */
+
+/* تفاصيل الإيصال */
+.receipt-details {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  border-bottom: 1px dashed #ddd;
+}
+
+.detail-item.full-width {
+  grid-column: 1 / -1;
+  flex-direction: column;
+}
+
+.detail-item .label {
+  font-weight: bold;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.detail-item .value {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.detail-item.amount-item {
+  grid-column: 1 / -1;
+  background: #e8f5e9;
+  padding: 1rem;
+  margin: 0.5rem 0;
+  border: 2px solid #4caf50;
+  border-radius: 4px;
+}
+
+.detail-item.amount-item .value {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #2e7d32;
+}
+
+/* المبلغ بالأحرف */
+.amount-in-words {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: #fff3e0;
+  border: 2px dashed #ff9800;
+  text-align: center;
+}
+
+.amount-in-words strong {
+  display: block;
+  margin-bottom: 0.8rem;
+  color: #e65100;
+  font-size: 0.95rem;
+}
+
+.amount-in-words span {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #e65100;
+}
+
+/* التوقيعات */
+.signatures {
+  display: flex;
+  justify-content: space-around;
+  margin: 3rem 0 2rem;
+  padding-top: 2rem;
+  border-top: 2px dashed #ddd;
+}
+
+.signature-box {
+  text-align: center;
+  min-width: 150px;
+}
+
+.signature-line {
+  width: 150px;
+  height: 50px;
+  border-bottom: 2px solid #000;
+  margin-bottom: 0.5rem;
+}
+
+.signature-box p {
+  color: #333;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin: 0.5rem 0;
+}
+
+/* الطباعة */
+@media print {
+  .amount-in-words {
+    background: #fff3e0 !important;
+    border-color: #ff9800 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  .detail-item.amount-item {
+    background: #e8f5e9 !important;
+    border-color: #4caf50 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  .detail-item.amount-item .value {
+    color: #2e7d32 !important;
+  }
+  
+  .amount-in-words strong,
+  .amount-in-words span {
+    color: #e65100 !important;
+  }
+  
+  .receipt-details {
+    page-break-inside: avoid;
+  }
+  
+  .signatures {
+    page-break-inside: avoid;
+  }
+  
+  .signature-line {
+    border-bottom: 2px solid #000 !important;
+  }
+}
+
+/* للشاشات الصغيرة */
+@media (max-width: 768px) {
+  .receipt-details {
+    grid-template-columns: 1fr;
+  }
+  
+  .signatures {
+    flex-direction: column;
+    gap: 2rem;
+    align-items: center;
+  }
+}
