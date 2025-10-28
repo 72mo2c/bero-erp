@@ -9,7 +9,7 @@ import { FaSave, FaPrint, FaSearch, FaTrash, FaPercent, FaUserPlus, FaCheckCircl
 import { printInvoiceDirectly } from '../../utils/printUtils';
 
 const NewSalesInvoice = () => {
-  const { customers, products, warehouses, addSalesInvoice } = useData();
+  const { customers, products, warehouses, addSalesInvoice, addCustomer } = useData();
   const { showSuccess, showError } = useNotification();
   
   const [formData, setFormData] = useState({
