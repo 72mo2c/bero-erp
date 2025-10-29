@@ -23,6 +23,12 @@ const NewPurchaseReturn = () => {
 
   useEffect(() => {
     console.log('🚀 تم تحميل مكون NewPurchaseReturn');
+    console.log('📊 معرف الفاتورة من useParams:', invoiceId);
+    console.log('📊 حالة البيانات:', {
+      purchaseInvoices: purchaseInvoices?.length || 0,
+      products: products?.length || 0,
+      suppliers: suppliers?.length || 0
+    });
     
     // محاولة الحصول على invoiceId من مصادر مختلفة
     let actualInvoiceId = invoiceId;
@@ -45,131 +51,111 @@ const NewPurchaseReturn = () => {
     }
     
     console.log('🔑 معرف الفاتورة النهائي:', actualInvoiceId);
-    console.log('📊 حالة البيانات:', {
-      purchaseInvoices: purchaseInvoices?.length || 0,
-      products: products?.length || 0,
-      suppliers: suppliers?.length || 0
+    
+    // تحقق من وجود معرف الفاتورة
+    if (!actualInvoiceId) {
+      console.error('❌ معرف الفاتورة غير موجود في URL');
+      showError('معرف الفاتورة غير صحيح');
+      setIsLoading(false);
+      return;
+    }
+
+    // تحقق من تحميل البيانات الأساسية
+    if (!purchaseInvoices || !Array.isArray(purchaseInvoices)) {
+      console.log('⏳ البيانات لم تُحمل بعد، منتظر...', {
+        purchaseInvoicesExists: !!purchaseInvoices,
+        purchaseInvoicesLength: purchaseInvoices?.length || 0
+      });
+      // عدم إيقاف التحميل - انتظار البيانات
+      return;
+    }
+
+    if (purchaseInvoices.length === 0) {
+      console.log('⚠️ لا توجد فواتير مشتريات في النظام');
+      showError('لا توجد فواتير مشتريات في النظام');
+      setIsLoading(false);
+      return;
+    }
+
+    console.log('🔍 البحث عن الفاتورة...', {
+      invoiceId: actualInvoiceId,
+      invoiceIdType: typeof actualInvoiceId,
+      purchaseInvoicesCount: purchaseInvoices.length,
+      firstInvoiceId: purchaseInvoices[0]?.id,
+      firstInvoiceIdType: typeof purchaseInvoices[0]?.id
+    });
+
+    // البحث عن الفاتورة مع مقارنة مرنة
+    const foundInvoice = purchaseInvoices.find(inv => {
+      const match = inv.id === parseInt(actualInvoiceId) || 
+                   inv.id.toString() === actualInvoiceId.toString();
+      if (match) {
+        console.log('✅ تم العثور على الفاتورة:', inv);
+      }
+      return match;
     });
     
-    // تأخير قصير للسماح بتحميل البيانات
-    const timer = setTimeout(() => {
-      // تحقق من وجود معرف الفاتورة
-      if (!actualInvoiceId) {
-        console.error('❌ معرف الفاتورة غير موجود في URL');
-        showError('معرف الفاتورة غير صحيح');
-        // نستخدم navigate فقط إذا لم يكن Tab System متاحاً
-        if (typeof navigate === 'function') {
-          navigate('/purchases/manage');
-        }
-        return;
-      }
-
-      // تحقق من تحميل البيانات الأساسية
-      if (!purchaseInvoices || !Array.isArray(purchaseInvoices)) {
-        console.log('⏳ البيانات لم تُحمل بعد، منتظر...', {
-          purchaseInvoicesExists: !!purchaseInvoices,
-          purchaseInvoicesLength: purchaseInvoices?.length || 0,
-          invoiceId: actualInvoiceId,
-          invoiceIdType: typeof actualInvoiceId
-        });
-        return; // انتظار تحميل البيانات
-      }
-
-      if (purchaseInvoices.length === 0) {
-        console.log('⚠️ لا توجد فواتير مشتريات في النظام');
-        showError('لا توجد فواتير مشتريات في النظام');
-        setIsLoading(false);
-        if (typeof navigate === 'function') {
-          navigate('/purchases/manage');
-        }
-        return;
-      }
-
-      console.log('🔍 البحث عن الفاتورة...', {
+    if (!foundInvoice) {
+      console.error('❌ الفاتورة غير موجودة:', {
         invoiceId: actualInvoiceId,
-        invoiceIdType: typeof actualInvoiceId,
-        purchaseInvoicesCount: purchaseInvoices.length,
-        firstInvoiceId: purchaseInvoices[0]?.id,
-        firstInvoiceIdType: typeof purchaseInvoices[0]?.id
+        availableInvoiceIds: purchaseInvoices.map(inv => ({id: inv.id, type: typeof inv.id}))
       });
+      showError(`الفاتورة رقم ${actualInvoiceId} غير موجودة`);
+      setIsLoading(false);
+      return;
+    }
 
-      // البحث عن الفاتورة مع مقارنة مرنة
-      const foundInvoice = purchaseInvoices.find(inv => {
-        const match = inv.id === parseInt(actualInvoiceId) || 
-                     inv.id.toString() === actualInvoiceId.toString();
-        if (match) {
-          console.log('✅ تم العثور على الفاتورة:', inv);
+    console.log('✅ تم العثور على الفاتورة بنجاح:', foundInvoice.id);
+    
+    setInvoice(foundInvoice);
+    
+    // حساب الكميات المرتجعة مسبقاً لكل منتج بفصل الكميات الأساسية والفرعية
+    const itemsWithReturnInfo = foundInvoice.items.map(item => {
+      const previousReturns = purchaseReturns?.filter(ret => 
+        ret.invoiceId === foundInvoice.id && ret.status !== 'cancelled'
+      ) || [];
+      
+      let totalReturnedMainQty = 0;
+      let totalReturnedSubQty = 0;
+      previousReturns.forEach(ret => {
+        const retItem = ret.items.find(i => i.productId === item.productId);
+        if (retItem) {
+          totalReturnedMainQty += (retItem.quantity || 0);
+          totalReturnedSubQty += (retItem.subQuantity || 0);
         }
-        return match;
       });
       
-      if (!foundInvoice) {
-        console.error('❌ الفاتورة غير موجودة:', {
-          invoiceId: actualInvoiceId,
-          availableInvoiceIds: purchaseInvoices.map(inv => ({id: inv.id, type: typeof inv.id}))
-        });
-        showError('الفاتورة غير موجودة');
-        setIsLoading(false);
-        if (typeof navigate === 'function') {
-          navigate('/purchases/manage');
-        }
-        return;
-      }
-
-      console.log('✅ تم العثور على الفاتورة بنجاح:', foundInvoice.id);
+      const originalMainQty = item.quantity || 0;
+      const originalSubQty = item.subQuantity || 0;
+      const availableMainQty = originalMainQty - totalReturnedMainQty;
+      const availableSubQty = originalSubQty - totalReturnedSubQty;
+      const totalAvailableQty = availableMainQty + availableSubQty;
       
-      setInvoice(foundInvoice);
+      // الحصول على اسم المنتج من قائمة المنتجات
+      const product = products?.find(p => p.id === parseInt(item.productId));
       
-      // حساب الكميات المرتجعة مسبقاً لكل منتج بفصل الكميات الأساسية والفرعية
-      const itemsWithReturnInfo = foundInvoice.items.map(item => {
-        const previousReturns = purchaseReturns?.filter(ret => 
-          ret.invoiceId === foundInvoice.id && ret.status !== 'cancelled'
-        ) || [];
-        
-        let totalReturnedMainQty = 0;
-        let totalReturnedSubQty = 0;
-        previousReturns.forEach(ret => {
-          const retItem = ret.items.find(i => i.productId === item.productId);
-          if (retItem) {
-            totalReturnedMainQty += (retItem.quantity || 0);
-            totalReturnedSubQty += (retItem.subQuantity || 0);
-          }
-        });
-        
-        const originalMainQty = item.quantity || 0;
-        const originalSubQty = item.subQuantity || 0;
-        const availableMainQty = originalMainQty - totalReturnedMainQty;
-        const availableSubQty = originalSubQty - totalReturnedSubQty;
-        const totalAvailableQty = availableMainQty + availableSubQty;
-        
-        // الحصول على اسم المنتج من قائمة المنتجات
-        const product = products?.find(p => p.id === parseInt(item.productId));
-        
-        return {
-          productId: item.productId,
-          productName: product?.name || item.productName || 'غير محدد',
-          originalQuantity: originalMainQty,
-          originalSubQuantity: originalSubQty,
-          originalPrice: item.price || 0,
-          originalSubPrice: item.subPrice || 0,
-          returnedMainQty: totalReturnedMainQty,
-          returnedSubQty: totalReturnedSubQty,
-          availableMainQty: availableMainQty,
-          availableSubQty: availableSubQty,
-          availableQty: totalAvailableQty,
-          returnQuantity: 0,
-          returnSubQuantity: 0,
-          selected: false
-        };
-      });
-      
-      setReturnItems(itemsWithReturnInfo);
-      setIsLoading(false); // انتهاء التحميل
-      console.log('🎉 تم تحميل صفحة المرتجعات بنجاح');
-    }, 100); // تأخير 100ms
-
-    return () => clearTimeout(timer);
-  }, [invoiceId, purchaseInvoices, purchaseReturns, navigate, showError, products]);
+      return {
+        productId: item.productId,
+        productName: product?.name || item.productName || 'غير محدد',
+        originalQuantity: originalMainQty,
+        originalSubQuantity: originalSubQty,
+        originalPrice: item.price || 0,
+        originalSubPrice: item.subPrice || 0,
+        returnedMainQty: totalReturnedMainQty,
+        returnedSubQty: totalReturnedSubQty,
+        availableMainQty: availableMainQty,
+        availableSubQty: availableSubQty,
+        availableQty: totalAvailableQty,
+        returnQuantity: 0,
+        returnSubQuantity: 0,
+        selected: false
+      };
+    });
+    
+    setReturnItems(itemsWithReturnInfo);
+    setIsLoading(false); // انتهاء التحميل
+    console.log('🎉 تم تحميل صفحة المرتجعات بنجاح');
+  }, [invoiceId, purchaseInvoices, purchaseReturns, showError, products]);
 
   const handleItemSelect = (index) => {
     const updated = [...returnItems];
