@@ -434,30 +434,26 @@ export const DataProvider = ({ children, orgId }) => {
         throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
       }
       
-      // خصم الكميات المرتجعة من المخزون بفصل الكميات الأساسية والفرعية
+      // خصم الكميات المرتجعة من المخزون (جمع الأساسي والفرعي معاً)
       const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
       if (productIndex !== -1) {
         const currentProduct = updatedProducts[productIndex];
         
-        // خصم الكميات الأساسية والفرعية كل على حدة
+        // حساب الكمية الإجمالية المرتجعة (الأساسية + الفرعية)
         const mainQtyToDeduct = item.quantity || 0;
         const subQtyToDeduct = item.subQuantity || 0;
+        const totalQtyToDeduct = mainQtyToDeduct + subQtyToDeduct;
         
-        const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQtyToDeduct;
-        const newSubQuantity = (currentProduct.subQuantity || 0) - subQtyToDeduct;
+        // خصم المجموع من mainQuantity (لأن المشتريات تُضاف للـ mainQuantity فقط)
+        const newMainQuantity = (currentProduct.mainQuantity || 0) - totalQtyToDeduct;
         
         if (newMainQuantity < 0) {
-          throw new Error(`الكمية الأساسية المتوفرة في المخزون غير كافية للمنتج`);
-        }
-        
-        if (newSubQuantity < 0 && subQtyToDeduct > 0) {
-          throw new Error(`الكمية الفرعية المتوفرة في المخزون غير كافية للمنتج`);
+          throw new Error(`الكمية المتوفرة في المخزون غير كافية للمنتج`);
         }
         
         updatedProducts[productIndex] = {
           ...currentProduct,
-          mainQuantity: newMainQuantity,
-          subQuantity: newSubQuantity
+          mainQuantity: newMainQuantity
         };
       }
       
@@ -508,20 +504,23 @@ export const DataProvider = ({ children, orgId }) => {
       throw new Error('المرتجع غير موجود');
     }
     
-    // إعادة الكميات المرتجعة للمخزون بفصل الكميات الأساسية والفرعية
+    // إعادة الكميات المرتجعة للمخزون (جمع الأساسي والفرعي معاً)
     const updatedProducts = [...products];
     
     returnRecord.items.forEach(item => {
       const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
       if (productIndex !== -1) {
         const currentProduct = updatedProducts[productIndex];
+        
+        // حساب الكمية الإجمالية المراد إعادتها (الأساسية + الفرعية)
         const mainQtyToAdd = item.quantity || 0;
         const subQtyToAdd = item.subQuantity || 0;
+        const totalQtyToAdd = mainQtyToAdd + subQtyToAdd;
         
+        // إعادة المجموع إلى mainQuantity (لأن المشتريات تُضاف للـ mainQuantity فقط)
         updatedProducts[productIndex] = {
           ...currentProduct,
-          mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
-          subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
+          mainQuantity: (currentProduct.mainQuantity || 0) + totalQtyToAdd
         };
       }
     });
