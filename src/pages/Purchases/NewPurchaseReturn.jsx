@@ -27,7 +27,7 @@ import {
 const EnhancedNewPurchaseReturn = () => {
   const { invoiceId } = useParams();
   const navigate = useNavigate();
-  const { closeTab } = useTab();
+  const { closeTab, activeTabId } = useTab();
   const { purchaseInvoices, products, suppliers, addPurchaseReturn, purchaseReturns } = useData();
   const { showSuccess, showError } = useNotification();
   const { settings } = useSystemSettings();
