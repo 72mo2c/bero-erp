@@ -243,7 +243,7 @@ const NewPurchaseReturn = () => {
       }
     } else if (field === 'returnSubQuantity') {
       if (newValue > item.availableSubQty) {
-        showError(`الكمية الفرعية المرتجعة تتجاوز المتاح (${${item.availableSubQty}})`);
+        showError(`الكمية الفرعية المرتجعة تتجاوز المتاح (${item.availableSubQty})`);
         return;
       }
     }
