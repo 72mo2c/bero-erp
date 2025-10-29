@@ -258,8 +258,13 @@ const NewPurchaseReturn = () => {
           icon: '↩️'
         });
       } catch (tabError) {
-        // في حالة فشل نظام التبويبات، استخدم navigate العادي
-        navigate('/purchases/returns');
+        console.error('خطأ في فتح تبويب المرتجعات:', tabError);
+        // محاولة فتح تبويب إدارة المشتريات كبديل
+        openNewTab({
+          path: '/purchases/manage',
+          title: 'إدارة فواتير المشتريات',
+          icon: '📋'
+        });
       }
     } catch (error) {
       showError(error.message || 'حدث خطأ في عملية الإرجاع');
@@ -308,7 +313,13 @@ const NewPurchaseReturn = () => {
           <p className="text-sm text-gray-600">فاتورة رقم #{invoice.id}</p>
         </div>
         <button
-          onClick={() => navigate('/purchases/manage')}
+          onClick={() => {
+            openNewTab({
+              path: '/purchases/manage',
+              title: 'إدارة فواتير المشتريات',
+              icon: '📋'
+            });
+          }}
           className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <FaArrowLeft /> رجوع
@@ -508,7 +519,13 @@ const NewPurchaseReturn = () => {
         <div className="flex gap-2 justify-end">
           <button
             type="button"
-            onClick={() => navigate('/purchases/manage')}
+            onClick={() => {
+              openNewTab({
+                path: '/purchases/manage',
+                title: 'إدارة فواتير المشتريات',
+                icon: '📋'
+              });
+            }}
             className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors"
           >
             إلغاء
