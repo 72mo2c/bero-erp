@@ -378,3 +378,5 @@ const SalesReturnModal = ({
 };
 
 export default SalesReturnModal;
+
+export default SalesReturnModal;

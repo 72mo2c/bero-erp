@@ -475,3 +475,5 @@ const ManageSalesInvoices = () => {
 };
 
 export default ManageSalesInvoices;
+
+export default ManageSalesInvoices;

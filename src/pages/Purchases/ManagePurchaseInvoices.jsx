@@ -108,7 +108,6 @@ const ManagePurchaseInvoices = () => {
     showSuccess('تم حفظ عملية الإرجاع بنجاح');
     // يمكن هنا إضافة تحديث للبيانات أو إغلاق التبويب
   };
-  };
 
   const handleView = (invoice) => {
     if (!canViewInvoice) {
