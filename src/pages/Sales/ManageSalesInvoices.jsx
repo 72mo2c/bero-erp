@@ -17,7 +17,7 @@ import { FaFileInvoice, FaSearch, FaExclamationTriangle, FaTimes, FaUndo, FaEye,
 
 const ManageSalesInvoices = () => {
   const navigate = useNavigate();
-  const { tabs, openNewTab, switchTab, setActiveTabId } = useTab();
+  const { tabs, openNewTab, switchTab } = useTab();
   const { salesInvoices, customers, products, warehouses, deleteSalesInvoice, salesReturns } = useData();
   const { showSuccess, showError } = useNotification();
   const { settings } = useSystemSettings();
@@ -88,26 +88,13 @@ const ManageSalesInvoices = () => {
     if (existingTab) {
       // إذا كان التبويب موجود مسبقاً، نقوم بتفعيله
       console.log('📋 تفعيل التبويب الموجود مسبقاً:', existingTab.id);
-      setActiveTabId(existingTab.id);
-      navigate(tabPath);
+      switchTab(existingTab.id);
     } else {
       // فتح تبويب جديد مع المسار المحدد
-      console.log('✨ إنشاء تبويب جديد لصفحة إرجاع الفاتورة');
-      const newTabId = `tab-${Date.now()}`;
-      const newTab = {
-        id: newTabId,
-        path: tabPath,
-        title: `إرجاع فاتورة مبيعات #${invoice.id}`,
-        icon: '↩️',
-        isMain: false
-      };
-      
-      // إضافة التبويب الجديد وتفعيله
-      setTabs(prevTabs => [...prevTabs, newTab]);
-      setActiveTabId(newTabId);
+      console.log('✨ فتح صفحة إرجاع الفاتورة مباشرة');
       navigate(tabPath);
       
-      console.log('🎉 تم إنشاء وتفعيل التبويب بنجاح');
+      console.log('🎉 تم فتح صفحة الإرجاع بنجاح');
     }
   };
 
