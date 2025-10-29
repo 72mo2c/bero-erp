@@ -194,6 +194,7 @@ export const TabProvider = ({ children }) => {
   const value = {
     tabs,
     activeTabId,
+    setActiveTabId,
     openNewTab,
     closeTab,
     switchTab,
