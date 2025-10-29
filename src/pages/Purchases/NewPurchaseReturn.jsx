@@ -6,12 +6,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
+import { useTab } from '../../contexts/TabContext';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { FaSave, FaArrowLeft, FaUndo } from 'react-icons/fa';
 
 const NewPurchaseReturn = () => {
   const { invoiceId } = useParams();
   const navigate = useNavigate();
+  const { openNewTab, switchTab } = useTab();
   const { purchaseInvoices, products, suppliers, addPurchaseReturn, purchaseReturns } = useData();
   const { showSuccess, showError } = useNotification();
 
@@ -109,27 +111,29 @@ const NewPurchaseReturn = () => {
     
     setInvoice(foundInvoice);
     
-    // حساب الكميات المرتجعة مسبقاً لكل منتج بفصل الكميات الأساسية والفرعية
+    // حساب الكميات المرتجعة مسبقاً لكل منتج
     const itemsWithReturnInfo = foundInvoice.items.map(item => {
       const previousReturns = purchaseReturns?.filter(ret => 
         ret.invoiceId === foundInvoice.id && ret.status !== 'cancelled'
       ) || [];
       
-      let totalReturnedMainQty = 0;
-      let totalReturnedSubQty = 0;
+      // حساب الكميات المرتجعة السابقة (مجمعة)
+      let totalReturnedQty = 0;
       previousReturns.forEach(ret => {
         const retItem = ret.items.find(i => i.productId === item.productId);
         if (retItem) {
-          totalReturnedMainQty += (retItem.quantity || 0);
-          totalReturnedSubQty += (retItem.subQuantity || 0);
+          // جمع جميع الكميات المرتجعة (الأساسية + الفرعية)
+          totalReturnedQty += (retItem.quantity || 0) + (retItem.subQuantity || 0);
         }
       });
       
+      // الكميات الأصلية (مجمعة أيضاً لأنها تُضاف للـ mainQuantity)
       const originalMainQty = item.quantity || 0;
       const originalSubQty = item.subQuantity || 0;
-      const availableMainQty = originalMainQty - totalReturnedMainQty;
-      const availableSubQty = originalSubQty - totalReturnedSubQty;
-      const totalAvailableQty = availableMainQty + availableSubQty;
+      const originalTotalQty = originalMainQty + originalSubQty;
+      
+      // الكمية المتاحة للإرجاع (إجمالية)
+      const availableTotalQty = originalTotalQty - totalReturnedQty;
       
       // الحصول على اسم المنتج من قائمة المنتجات
       const product = products?.find(p => p.id === parseInt(item.productId));
@@ -137,15 +141,18 @@ const NewPurchaseReturn = () => {
       return {
         productId: item.productId,
         productName: product?.name || item.productName || 'غير محدد',
+        // الكميات الأصلية (للعرض فقط)
         originalQuantity: originalMainQty,
         originalSubQuantity: originalSubQty,
+        originalTotalQty: originalTotalQty,
+        // الأسعار
         originalPrice: item.price || 0,
         originalSubPrice: item.subPrice || 0,
-        returnedMainQty: totalReturnedMainQty,
-        returnedSubQty: totalReturnedSubQty,
-        availableMainQty: availableMainQty,
-        availableSubQty: availableSubQty,
-        availableQty: totalAvailableQty,
+        // الكميات المرتجعة السابقة
+        totalReturnedQty: totalReturnedQty,
+        // الكمية المتاحة للإرجاع
+        availableTotalQty: Math.max(0, availableTotalQty),
+        // كميات الإرجاع المحددة من المستخدم
         returnQuantity: 0,
         returnSubQuantity: 0,
         selected: false
@@ -175,20 +182,16 @@ const NewPurchaseReturn = () => {
     const item = updated[index];
     
     const newValue = Math.max(0, parseInt(value) || 0);
+    updated[index][field] = newValue;
     
-    // التحقق من عدم تجاوز الكمية المتاحة لكل نوع على حدة
-    if (field === 'returnQuantity') {
-      if (newValue > item.availableMainQty) {
-        showError(`الكمية الأساسية المرتجعة تتجاوز المتاح (${item.availableMainQty})`);
-        return;
-      }
-      updated[index][field] = newValue;
-    } else if (field === 'returnSubQuantity') {
-      if (newValue > item.availableSubQty) {
-        showError(`الكمية الفرعية المرتجعة تتجاوز المتاح (${item.availableSubQty})`);
-        return;
-      }
-      updated[index][field] = newValue;
+    // التحقق من عدم تجاوز الكمية المتاحة الإجمالية
+    const totalReturnQty = updated[index].returnQuantity + updated[index].returnSubQuantity;
+    
+    if (totalReturnQty > item.availableTotalQty) {
+      showError(`إجمالي الكمية المرتجعة (${totalReturnQty}) يتجاوز الكمية المتاحة (${item.availableTotalQty})`);
+      // إعادة تعيين القيمة للحد الأقصى المسموح
+      const remainingQty = item.availableTotalQty - (field === 'returnQuantity' ? updated[index].returnSubQuantity : updated[index].returnQuantity);
+      updated[index][field] = Math.max(0, Math.min(newValue, remainingQty));
     }
     
     setReturnItems(updated);
@@ -246,7 +249,18 @@ const NewPurchaseReturn = () => {
 
       addPurchaseReturn(returnData);
       showSuccess('تم إرجاع المنتجات بنجاح');
-      navigate('/purchases/returns');
+      
+      // فتح صفحة المرتجعات في تبويب جديد أو التبديل إليها إذا كانت مفتوحة
+      try {
+        openNewTab({
+          path: '/purchases/returns',
+          title: 'مرتجعات المشتريات',
+          icon: '↩️'
+        });
+      } catch (tabError) {
+        // في حالة فشل نظام التبويبات، استخدم navigate العادي
+        navigate('/purchases/returns');
+      }
     } catch (error) {
       showError(error.message || 'حدث خطأ في عملية الإرجاع');
     }
@@ -343,7 +357,7 @@ const NewPurchaseReturn = () => {
                       onChange={(e) => {
                         const updated = returnItems.map(item => ({
                           ...item,
-                          selected: e.target.checked && item.availableQty > 0
+                          selected: e.target.checked && item.availableTotalQty > 0
                         }));
                         setReturnItems(updated);
                       }}
@@ -363,7 +377,7 @@ const NewPurchaseReturn = () => {
                   const product = products.find(p => p.id === parseInt(item.productId));
                   const returnAmount = item.returnQuantity * item.originalPrice + 
                                       item.returnSubQuantity * item.originalSubPrice;
-                  const isDisabled = item.availableQty === 0;
+                  const isDisabled = item.availableTotalQty === 0;
                   
                   return (
                     <tr key={index} className={`hover:bg-gray-50 ${isDisabled ? 'opacity-50' : ''}`}>
@@ -381,30 +395,26 @@ const NewPurchaseReturn = () => {
                         <div className="text-xs text-gray-500">{product?.category || '-'}</div>
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <div>{item.originalQuantity} أساسي</div>
-                        {item.originalSubQuantity > 0 && (
-                          <div className="text-xs text-gray-500">{item.originalSubQuantity} فرعي</div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <div>{item.returnedMainQty} أساسي</div>
-                        {item.returnedSubQty > 0 && (
-                          <div className="text-xs text-gray-500">{item.returnedSubQty} فرعي</div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <div className={`text-xs font-semibold ${
-                          item.availableMainQty > 0 ? 'text-green-700' : 'text-gray-500'
-                        }`}>
-                          {item.availableMainQty} أساسي
+                        <div className="text-sm font-medium">
+                          {item.originalTotalQty} إجمالي
                         </div>
-                        {item.originalSubQuantity > 0 && (
-                          <div className={`text-xs font-semibold ${
-                            item.availableSubQty > 0 ? 'text-green-700' : 'text-gray-500'
-                          }`}>
-                            {item.availableSubQty} فرعي
-                          </div>
-                        )}
+                        <div className="text-xs text-gray-500">
+                          ({item.originalQuantity} أساسي + {item.originalSubQuantity} فرعي)
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="text-sm font-medium text-red-600">
+                          {item.totalReturnedQty}
+                        </div>
+                        <div className="text-xs text-gray-500">إجمالي مرتجع</div>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <div className={`text-sm font-semibold ${
+                          item.availableTotalQty > 0 ? 'text-green-700' : 'text-gray-500'
+                        }`}>
+                          {item.availableTotalQty}
+                        </div>
+                        <div className="text-xs text-gray-500">متاح للإرجاع</div>
                       </td>
                       <td className="px-3 py-2">
                         {item.selected && (
@@ -415,7 +425,6 @@ const NewPurchaseReturn = () => {
                               onChange={(e) => handleQuantityChange(index, 'returnQuantity', e.target.value)}
                               className="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded"
                               min="0"
-                              max={item.availableMainQty}
                               placeholder="أساسي"
                             />
                             {item.originalSubQuantity > 0 && (
@@ -425,7 +434,6 @@ const NewPurchaseReturn = () => {
                                 onChange={(e) => handleQuantityChange(index, 'returnSubQuantity', e.target.value)}
                                 className="w-16 px-2 py-1 text-xs text-center border border-gray-300 rounded"
                                 min="0"
-                                max={item.availableSubQty}
                                 placeholder="فرعي"
                               />
                             )}
