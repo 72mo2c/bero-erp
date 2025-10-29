@@ -2,7 +2,7 @@
 // Purchase Returns - لوحة إدارة المرتجعات المتقدمة
 // ======================================
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
 import ErrorBoundary from '../../components/ErrorBoundary';
@@ -45,7 +45,9 @@ import {
   FaHistory,
   FaBalanceScale,
   FaCoins,
-  FaHandshake
+  FaHandshake,
+  FaPaperPlane,
+  FaQuestion
 } from 'react-icons/fa';
 
 const PurchaseReturns = () => {
@@ -183,7 +185,7 @@ const PurchaseReturns = () => {
     });
 
     return filtered;
-  }, [purchaseReturns, searchQuery, statusFilter, dateFilter, supplierFilter, amountRange, sortBy, sortOrder, purchaseInvoices, suppliers]);
+  }, [purchaseReturns, searchQuery, statusFilter, dateFilter, supplierFilter, amountRange, sortBy, sortOrder, purchaseInvoices, suppliers, getStatusText]);
 
   // ترقيم الصفحات
   const totalPages = Math.ceil(filteredReturns.length / itemsPerPage);
@@ -1264,265 +1266,301 @@ const PurchaseReturns = () => {
             </div>
           </div>
 
-      {/* شريط البحث والتصفية */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* البحث */}
-          <div className="col-span-2">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="ابحث برقم الإرجاع، رقم الفاتورة أو اسم المورد..."
-              />
-              <FaSearch className="absolute left-3 top-3 text-gray-400" />
+          {/* جدول المرتجعات مع الترقيم */}
+          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-100 border-b">
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700">
+                      <div className="flex items-center gap-1 cursor-pointer" onClick={() => handleSort('id')}>
+                        رقم الإرجاع
+                        {getSortIcon('id')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700">
+                      <div className="flex items-center gap-1 cursor-pointer" onClick={() => handleSort('supplier')}>
+                        المورد
+                        {getSortIcon('supplier')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">
+                      <div className="flex items-center gap-1 cursor-pointer justify-center" onClick={() => handleSort('date')}>
+                        التاريخ
+                        {getSortIcon('date')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">السبب</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">عدد المنتجات</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">
+                      <div className="flex items-center gap-1 cursor-pointer justify-center" onClick={() => handleSort('amount')}>
+                        المبلغ
+                        {getSortIcon('amount')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">
+                      <div className="flex items-center gap-1 cursor-pointer justify-center" onClick={() => handleSort('status')}>
+                        الحالة
+                        {getSortIcon('status')}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {paginatedReturns.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
+                        <FaUndo className="mx-auto mb-2 text-3xl text-gray-300" />
+                        <p>لا توجد مرتجعات تطابق معايير البحث</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedReturns.map((returnRecord) => {
+                      const invoice = purchaseInvoices.find(inv => inv.id === returnRecord.invoiceId);
+                      const supplier = suppliers.find(s => s.id === parseInt(invoice?.supplierId));
+                      
+                      return (
+                        <tr key={returnRecord.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedBulkReturns.includes(returnRecord.id)}
+                                onChange={() => toggleReturnSelection(returnRecord.id)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="font-bold text-red-600">#{returnRecord.id}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">فاتورة: #{returnRecord.invoiceId}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900">{supplier?.name || 'غير محدد'}</div>
+                            <div className="text-xs text-gray-500">{supplier?.phone || '-'}</div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="text-sm font-medium">
+                              {new Date(returnRecord.date).toLocaleDateString('ar-EG')}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(returnRecord.date).toLocaleTimeString('ar-EG')}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
+                              {getReasonText(returnRecord.reason)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                              {returnRecord.items?.length || 0}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`text-lg font-bold ${getAmountColor(returnRecord.totalAmount || 0)}`}>
+                              {(returnRecord.totalAmount || 0).toFixed(2)} د.ع
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {getStatusBadge(returnRecord.status)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {getActionButtons(returnRecord)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
 
-          {/* التصفية حسب الحالة */}
-          <div>
-            <div className="relative">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
-              >
-                <option value="all">جميع الحالات</option>
-                <option value="completed">مكتمل</option>
-                <option value="pending">معلق</option>
-                <option value="cancelled">ملغى</option>
-              </select>
-              <FaFilter className="absolute left-3 top-3 text-gray-400" />
-            </div>
+            {/* ترقيم الصفحات */}
+            {totalPages > 1 && (
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-700">
+                    عرض {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredReturns.length)} من {filteredReturns.length} مرتجع
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    >
+                      السابق
+                    </button>
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-2 text-sm border rounded-lg transition-colors ${
+                            currentPage === pageNum
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    >
+                      التالي
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="mt-3 text-sm text-gray-600">
-          عرض {filteredReturns.length} من {purchaseReturns.length} مرتجع
-        </div>
-      </div>
+        {/* Modal عرض تفاصيل الإرجاع */}
+        {showViewModal && selectedReturn && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-red-500 to-red-600 p-4 text-white sticky top-0">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold">تفاصيل الإرجاع #{selectedReturn.id}</h3>
+                  <button
+                    onClick={() => setShowViewModal(false)}
+                    className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
 
-      {/* جدول المرتجعات */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-100 border-b">
-                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700">رقم الإرجاع</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700">رقم الفاتورة</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-700">المورد</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">التاريخ</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">السبب</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">عدد المنتجات</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">المبلغ</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">الحالة</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredReturns.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="px-3 py-8 text-center text-gray-500">
-                    <FaUndo className="mx-auto mb-2 text-3xl text-gray-300" />
-                    <p>لا توجد مرتجعات</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredReturns.map((returnRecord) => {
-                  const invoice = purchaseInvoices.find(inv => inv.id === returnRecord.invoiceId);
+              {/* Body */}
+              <div className="p-6">
+                {(() => {
+                  const invoice = purchaseInvoices.find(inv => inv.id === selectedReturn.invoiceId);
                   const supplier = suppliers.find(s => s.id === parseInt(invoice?.supplierId));
                   
                   return (
-                    <tr key={returnRecord.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-semibold text-red-600">
-                        #{returnRecord.id}
-                      </td>
-                      <td className="px-3 py-2 font-medium text-blue-600">
-                        #{returnRecord.invoiceId}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="font-medium">{supplier?.name || 'غير محدد'}</div>
-                        <div className="text-xs text-gray-500">{supplier?.phone || '-'}</div>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {new Date(returnRecord.date).toLocaleDateString('ar-EG')}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
-                          {getReasonText(returnRecord.reason)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <span className="px-2 py-1 bg-gray-100 rounded-full text-xs">
-                          {returnRecord.items?.length || 0}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-center font-bold text-red-600">
-                        {(returnRecord.totalAmount || 0).toFixed(2)} د.ع
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {getStatusBadge(returnRecord.status)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex justify-center gap-2">
-                          <button
-                            onClick={() => handleView(returnRecord)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                            title="عرض"
-                          >
-                            <FaEye />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(returnRecord)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="حذف"
-                          >
-                            <FaTrash />
-                          </button>
+                    <>
+                      {/* معلومات الإرجاع */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-red-50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-1">رقم الفاتورة الأصلية</p>
+                          <p className="font-semibold text-sm">#{selectedReturn.invoiceId}</p>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                        <div className="bg-blue-50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-1">المورد</p>
+                          <p className="font-semibold text-sm">{supplier?.name || 'غير محدد'}</p>
+                        </div>
+                        <div className="bg-green-50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-1">تاريخ الإرجاع</p>
+                          <p className="font-semibold text-sm">
+                            {new Date(selectedReturn.date).toLocaleDateString('ar-EG')}
+                          </p>
+                        </div>
+                        <div className="bg-purple-50 p-3 rounded-lg">
+                          <p className="text-xs text-gray-600 mb-1">إجمالي المبلغ</p>
+                          <p className="font-bold text-lg text-purple-600">
+                            {(selectedReturn.totalAmount || 0).toFixed(2)} د.ع
+                          </p>
+                        </div>
+                      </div>
 
-      {/* Modal عرض تفاصيل الإرجاع */}
-      {showViewModal && selectedReturn && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-red-500 to-red-600 p-4 text-white sticky top-0">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-bold">تفاصيل الإرجاع #{selectedReturn.id}</h3>
+                      {/* سبب الإرجاع */}
+                      <div className="bg-orange-50 p-4 rounded-lg mb-6">
+                        <p className="text-xs text-gray-600 mb-1">سبب الإرجاع</p>
+                        <p className="font-semibold">{getReasonText(selectedReturn.reason)}</p>
+                        {selectedReturn.notes && (
+                          <>
+                            <p className="text-xs text-gray-600 mt-2 mb-1">ملاحظات</p>
+                            <p className="text-sm">{selectedReturn.notes}</p>
+                          </>
+                        )}
+                      </div>
+
+                      {/* جدول المنتجات المرتجعة */}
+                      <div className="mb-6">
+                        <h4 className="text-sm font-bold text-gray-800 mb-3">المنتجات المرتجعة</h4>
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-100">
+                                <th className="px-3 py-2 text-right text-xs font-semibold">#</th>
+                                <th className="px-3 py-2 text-right text-xs font-semibold">المنتج</th>
+                                <th className="px-3 py-2 text-center text-xs font-semibold">الكمية</th>
+                                <th className="px-3 py-2 text-center text-xs font-semibold">السعر</th>
+                                <th className="px-3 py-2 text-center text-xs font-semibold">الإجمالي</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {(selectedReturn.items || []).map((item, index) => {
+                                const product = products.find(p => p.id === parseInt(item.productId));
+                                const originalItem = invoice?.items.find(i => i.productId === item.productId);
+                                const itemTotal = (item.quantity || 0) * (originalItem?.price || 0) + 
+                                                (item.subQuantity || 0) * (originalItem?.subPrice || 0);
+                                
+                                return (
+                                  <tr key={index} className="hover:bg-gray-50">
+                                    <td className="px-3 py-2">{index + 1}</td>
+                                    <td className="px-3 py-2">
+                                      <div className="font-medium">{product?.name || 'غير محدد'}</div>
+                                      <div className="text-xs text-gray-500">{product?.category || '-'}</div>
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      <div>{item.quantity || 0} أساسي</div>
+                                      {item.subQuantity > 0 && (
+                                        <div className="text-xs text-gray-500">{item.subQuantity} فرعي</div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-center">
+                                      <div>{(originalItem?.price || 0).toFixed(2)}</div>
+                                      {originalItem?.subPrice > 0 && (
+                                        <div className="text-xs text-gray-500">
+                                          {(originalItem?.subPrice || 0).toFixed(2)}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-center font-semibold text-red-600">
+                                      {itemTotal.toFixed(2)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="bg-gray-50 p-4 border-t flex justify-end">
                 <button
                   onClick={() => setShowViewModal(false)}
-                  className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition-all"
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
                 >
-                  ✕
+                  إغلاق
                 </button>
               </div>
             </div>
-
-            {/* Body */}
-            <div className="p-6">
-              {(() => {
-                const invoice = purchaseInvoices.find(inv => inv.id === selectedReturn.invoiceId);
-                const supplier = suppliers.find(s => s.id === parseInt(invoice?.supplierId));
-                
-                return (
-                  <>
-                    {/* معلومات الإرجاع */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-red-50 p-3 rounded-lg">
-                        <p className="text-xs text-gray-600 mb-1">رقم الفاتورة الأصلية</p>
-                        <p className="font-semibold text-sm">#{selectedReturn.invoiceId}</p>
-                      </div>
-                      <div className="bg-blue-50 p-3 rounded-lg">
-                        <p className="text-xs text-gray-600 mb-1">المورد</p>
-                        <p className="font-semibold text-sm">{supplier?.name || 'غير محدد'}</p>
-                      </div>
-                      <div className="bg-green-50 p-3 rounded-lg">
-                        <p className="text-xs text-gray-600 mb-1">تاريخ الإرجاع</p>
-                        <p className="font-semibold text-sm">
-                          {new Date(selectedReturn.date).toLocaleDateString('ar-EG')}
-                        </p>
-                      </div>
-                      <div className="bg-purple-50 p-3 rounded-lg">
-                        <p className="text-xs text-gray-600 mb-1">إجمالي المبلغ</p>
-                        <p className="font-bold text-lg text-purple-600">
-                          {(selectedReturn.totalAmount || 0).toFixed(2)} د.ع
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* سبب الإرجاع */}
-                    <div className="bg-orange-50 p-4 rounded-lg mb-6">
-                      <p className="text-xs text-gray-600 mb-1">سبب الإرجاع</p>
-                      <p className="font-semibold">{getReasonText(selectedReturn.reason)}</p>
-                      {selectedReturn.notes && (
-                        <>
-                          <p className="text-xs text-gray-600 mt-2 mb-1">ملاحظات</p>
-                          <p className="text-sm">{selectedReturn.notes}</p>
-                        </>
-                      )}
-                    </div>
-
-                    {/* جدول المنتجات المرتجعة */}
-                    <div className="mb-6">
-                      <h4 className="text-sm font-bold text-gray-800 mb-3">المنتجات المرتجعة</h4>
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-gray-100">
-                              <th className="px-3 py-2 text-right text-xs font-semibold">#</th>
-                              <th className="px-3 py-2 text-right text-xs font-semibold">المنتج</th>
-                              <th className="px-3 py-2 text-center text-xs font-semibold">الكمية</th>
-                              <th className="px-3 py-2 text-center text-xs font-semibold">السعر</th>
-                              <th className="px-3 py-2 text-center text-xs font-semibold">الإجمالي</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {(selectedReturn.items || []).map((item, index) => {
-                              const product = products.find(p => p.id === parseInt(item.productId));
-                              const originalItem = invoice?.items.find(i => i.productId === item.productId);
-                              const itemTotal = (item.quantity || 0) * (originalItem?.price || 0) + 
-                                               (item.subQuantity || 0) * (originalItem?.subPrice || 0);
-                              
-                              return (
-                                <tr key={index} className="hover:bg-gray-50">
-                                  <td className="px-3 py-2">{index + 1}</td>
-                                  <td className="px-3 py-2">
-                                    <div className="font-medium">{product?.name || 'غير محدد'}</div>
-                                    <div className="text-xs text-gray-500">{product?.category || '-'}</div>
-                                  </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <div>{item.quantity || 0} أساسي</div>
-                                    {item.subQuantity > 0 && (
-                                      <div className="text-xs text-gray-500">{item.subQuantity} فرعي</div>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-2 text-center">
-                                    <div>{(originalItem?.price || 0).toFixed(2)}</div>
-                                    {originalItem?.subPrice > 0 && (
-                                      <div className="text-xs text-gray-500">
-                                        {(originalItem?.subPrice || 0).toFixed(2)}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-2 text-center font-semibold text-red-600">
-                                    {itemTotal.toFixed(2)}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* Footer */}
-            <div className="bg-gray-50 p-4 border-t flex justify-end">
-              <button
-                onClick={() => setShowViewModal(false)}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                إغلاق
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
     </ErrorBoundary>
   );
 };
