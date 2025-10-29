@@ -550,6 +550,8 @@ export const DataProvider = ({ children, orgId }) => {
       setPurchaseInvoices(updatedInvoices);
       saveData('bero_purchase_invoices', updatedInvoices);
     }
+    
+    // تحديث رصيد المورد (يتم حسابه ديناميكياً في getSupplierBalance)
   };
 
   // ==================== دوال فواتير المبيعات ====================
@@ -707,7 +709,7 @@ export const DataProvider = ({ children, orgId }) => {
       });
       
       // الكمية المتاحة للإرجاع
-      const originalQty = parseInt(originalItem.quantity) || 0;
+      const originalQty = (parseInt(originalItem.quantity) || 0) + (parseInt(originalItem.subQuantity) || 0);
       const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
       const availableQty = originalQty - totalReturnedQty;
       
@@ -715,17 +717,23 @@ export const DataProvider = ({ children, orgId }) => {
         throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
       }
       
-      // إضافة الكميات المرتجعة للمخزون (عكس البيع)
+      // إضافة الكميات المرتجعة للمخزون (عكس البيع) - فصل الكميات الأساسية والفرعية
       const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
       if (productIndex !== -1) {
+        const currentProduct = updatedProducts[productIndex];
+        const mainQtyToAdd = item.quantity || 0;
+        const subQtyToAdd = item.subQuantity || 0;
+        
         updatedProducts[productIndex] = {
-          ...updatedProducts[productIndex],
-          mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) + returnQty
+          ...currentProduct,
+          mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
+          subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
         };
       }
       
-      // حساب المبلغ المرتجع
-      const itemAmount = returnQty * (originalItem.price || 0);
+      // حساب المبلغ المرتجع - حساب صحيح للكميات الأساسية والفرعية
+      const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
+                        (item.subQuantity || 0) * (originalItem.subPrice || 0);
       totalAmount += itemAmount;
     });
     
@@ -776,10 +784,25 @@ export const DataProvider = ({ children, orgId }) => {
     returnRecord.items.forEach(item => {
       const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
       if (productIndex !== -1) {
-        const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
+        const currentProduct = updatedProducts[productIndex];
+        const mainQtyToDeduct = item.quantity || 0;
+        const subQtyToDeduct = item.subQuantity || 0;
+        
+        const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQtyToDeduct;
+        const newSubQuantity = (currentProduct.subQuantity || 0) - subQtyToDeduct;
+        
+        if (newMainQuantity < 0) {
+          throw new Error(`الكمية الأساسية المتوفرة في المخزون غير كافية للمنتج`);
+        }
+        
+        if (newSubQuantity < 0 && subQtyToDeduct > 0) {
+          throw new Error(`الكمية الفرعية المتوفرة في المخزون غير كافية للمنتج`);
+        }
+        
         updatedProducts[productIndex] = {
-          ...updatedProducts[productIndex],
-          mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) - returnQty
+          ...currentProduct,
+          mainQuantity: newMainQuantity,
+          subQuantity: newSubQuantity
         };
       }
     });

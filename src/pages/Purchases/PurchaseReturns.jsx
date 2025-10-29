@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import { FaUndo, FaEye, FaTrash, FaSearch, FaFilter, FaFileInvoice } from 'react-icons/fa';
 
 const PurchaseReturns = () => {
@@ -80,7 +81,8 @@ const PurchaseReturns = () => {
   const totalPendingAmount = pendingReturns.reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
+    <ErrorBoundary componentName="مرتجعات المشتريات">
+      <div className="max-w-7xl mx-auto p-4">
       <h2 className="text-xl font-bold text-gray-800 mb-4">مرتجعات المشتريات</h2>
 
       {/* بطاقات الإحصائيات */}
@@ -388,6 +390,7 @@ const PurchaseReturns = () => {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 };
 

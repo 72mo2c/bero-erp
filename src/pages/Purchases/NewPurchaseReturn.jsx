@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import { FaSave, FaArrowLeft, FaUndo } from 'react-icons/fa';
 
 const NewPurchaseReturn = () => {
@@ -298,7 +299,8 @@ const NewPurchaseReturn = () => {
   const supplier = suppliers.find(s => s.id === parseInt(invoice.supplierId));
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
+    <ErrorBoundary componentName="إرجاع فاتورة مشتريات">
+      <div className="max-w-7xl mx-auto p-4">
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <div>
@@ -526,6 +528,7 @@ const NewPurchaseReturn = () => {
         </div>
       </form>
     </div>
+    </ErrorBoundary>
   );
 };
 
