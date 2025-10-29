@@ -8,6 +8,7 @@ import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { useAuth } from '../../context/AuthContext';
+import { useTab } from '../../contexts/TabContext';
 import Card from '../../components/Common/Card';
 import Table from '../../components/Common/Table';
 import Input from '../../components/Common/Input';
@@ -16,7 +17,8 @@ import { FaFileInvoice, FaSearch, FaExclamationTriangle, FaTimes, FaUndo, FaEye,
 
 const ManageSalesInvoices = () => {
   const navigate = useNavigate();
-  const { salesInvoices, customers, products, warehouses, deleteSalesInvoice } = useData();
+  const { tabs, openNewTab, switchTab, setActiveTabId } = useTab();
+  const { salesInvoices, customers, products, warehouses, deleteSalesInvoice, salesReturns } = useData();
   const { showSuccess, showError } = useNotification();
   const { settings } = useSystemSettings();
   const { hasPermission } = useAuth();
@@ -75,7 +77,38 @@ const ManageSalesInvoices = () => {
       showError('ليس لديك صلاحية لإرجاع فواتير المبيعات');
       return;
     }
-    navigate(`/sales/return/${invoice.id}`);
+    
+    console.log('🔄 فتح صفحة إرجاع الفاتورة:', invoice.id);
+    
+    const tabPath = `/sales/return/${invoice.id}`;
+    
+    // فحص ما إذا كان التبويب مفتوح مسبقاً
+    const existingTab = tabs.find(tab => tab.path === tabPath);
+    
+    if (existingTab) {
+      // إذا كان التبويب موجود مسبقاً، نقوم بتفعيله
+      console.log('📋 تفعيل التبويب الموجود مسبقاً:', existingTab.id);
+      setActiveTabId(existingTab.id);
+      navigate(tabPath);
+    } else {
+      // فتح تبويب جديد مع المسار المحدد
+      console.log('✨ إنشاء تبويب جديد لصفحة إرجاع الفاتورة');
+      const newTabId = `tab-${Date.now()}`;
+      const newTab = {
+        id: newTabId,
+        path: tabPath,
+        title: `إرجاع فاتورة مبيعات #${invoice.id}`,
+        icon: '↩️',
+        isMain: false
+      };
+      
+      // إضافة التبويب الجديد وتفعيله
+      setTabs(prevTabs => [...prevTabs, newTab]);
+      setActiveTabId(newTabId);
+      navigate(tabPath);
+      
+      console.log('🎉 تم إنشاء وتفعيل التبويب بنجاح');
+    }
   };
 
   const handleEdit = (invoice) => {
@@ -189,6 +222,33 @@ const ManageSalesInvoices = () => {
       render: (row) => (
         <span className="font-bold text-green-600">{formatCurrency(row.total || 0)}</span>
       )
+    },
+    {
+      header: 'المرتجعات',
+      accessor: 'returns',
+      render: (row) => {
+        // حساب عدد المرتجعات للفاتورة
+        const invoiceReturns = salesReturns?.filter(ret => 
+          ret.invoiceId === row.id && ret.status !== 'cancelled'
+        ) || [];
+        const hasActiveReturns = invoiceReturns.length > 0;
+        const totalReturnedAmount = invoiceReturns.reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+        
+        return hasActiveReturns ? (
+          <div className="space-y-1">
+            <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">
+              {invoiceReturns.length} مرتجع
+            </span>
+            <div className="text-xs text-red-600">
+              {formatCurrency(totalReturnedAmount)}
+            </div>
+          </div>
+        ) : (
+          <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs">
+            لا يوجد
+          </span>
+        );
+      }
     },
   ];
 
