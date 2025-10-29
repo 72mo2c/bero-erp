@@ -6,6 +6,30 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const DataContext = createContext();
 
+// ثوابت حالات المرتجعات
+const RETURN_STATUSES = {
+  DRAFT: 'draft',
+  PENDING: 'pending', 
+  APPROVED: 'approved',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  REJECTED: 'rejected'
+};
+
+// ثوابت أنواع المرتجعات
+const RETURN_TYPES = {
+  PURCHASE: 'purchase',
+  SALES: 'sales'
+};
+
+// ثوابت أنواع المستخدمين (للتحقق من الصلاحيات)
+const USER_ROLES = {
+  ADMIN: 'admin',
+  MANAGER: 'manager',
+  ACCOUNTANT: 'accountant',
+  EMPLOYEE: 'employee'
+};
+
 // Hook لاستخدام Data Context
 export const useData = () => {
   const context = useContext(DataContext);
@@ -44,11 +68,244 @@ export const DataProvider = ({ children, orgId }) => {
   
   // بيانات التحويلات بين المخازن
   const [transfers, setTransfers] = useState([]);
+  
+  // بيانات النظام المتقدمة
+  const [auditLogs, setAuditLogs] = useState([]); // تتبع التغييرات
+  const [permissions, setPermissions] = useState({}); // صلاحيات المستخدمين
+  const [currentUser, setCurrentUser] = useState(null); // المستخدم الحالي
 
   // دالة مساعدة للحصول على مفاتيح LocalStorage مع orgId
   const getStorageKey = (key) => {
     if (!orgId) return key; // للتوافق مع النظام القديم
     return `bero_${orgId}_${key.replace('bero_', '')}`;
+  };
+
+  // ==================== دوال النظام المتقدمة ====================
+  
+  // تسجيل العمليات (Audit Trail)
+  const addAuditLog = (action, entityType, entityId, userId, details = {}) => {
+    const newLog = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      action,
+      entityType,
+      entityId,
+      userId: userId || currentUser?.id || 'anonymous',
+      details,
+      ipAddress: details.ipAddress || 'unknown',
+      userAgent: details.userAgent || 'unknown'
+    };
+    
+    const updatedLogs = [newLog, ...auditLogs];
+    setAuditLogs(updatedLogs);
+    saveData('bero_audit_logs', updatedLogs);
+    
+    console.log(`[AUDIT] ${action} on ${entityType} ${entityId}:`, details);
+  };
+  
+  // التحقق من الصلاحيات
+  const checkPermission = (action, resource, userRole = currentUser?.role) => {
+    if (!userRole) return false;
+    
+    // صلاحيات المدير (جميع الصلاحيات)
+    if (userRole === USER_ROLES.ADMIN) return true;
+    
+    // تعريف صلاحيات الأدوار
+    const rolePermissions = {
+      [USER_ROLES.MANAGER]: [
+        'view_returns', 'create_returns', 'update_returns', 'approve_returns',
+        'reject_returns', 'view_audit_logs'
+      ],
+      [USER_ROLES.ACCOUNTANT]: [
+        'view_returns', 'create_returns', 'update_returns', 'approve_returns',
+        'reject_returns', 'view_treasury'
+      ],
+      [USER_ROLES.EMPLOYEE]: [
+        'view_returns', 'create_returns', 'update_returns'
+      ]
+    };
+    
+    const permissions = rolePermissions[userRole] || [];
+    const permission = `${action}_${resource}`;
+    
+    return permissions.includes(permission);
+  };
+  
+  // التحقق من صحة حالة الانتقال
+  const validateStatusTransition = (fromStatus, toStatus, userRole) => {
+    const validTransitions = {
+      [RETURN_STATUSES.DRAFT]: [RETURN_STATUSES.PENDING, RETURN_STATUSES.CANCELLED],
+      [RETURN_STATUSES.PENDING]: [RETURN_STATUSES.APPROVED, RETURN_STATUSES.REJECTED],
+      [RETURN_STATUSES.APPROVED]: [RETURN_STATUSES.COMPLETED, RETURN_STATUSES.CANCELLED],
+      [RETURN_STATUSES.COMPLETED]: [], // لا يمكن تغيير الحالة من مكتمل
+      [RETURN_STATUSES.CANCELLED]: [], // لا يمكن تغيير الحالة من ملغي
+      [RETURN_STATUSES.REJECTED]: [RETURN_STATUSES.DRAFT, RETURN_STATUSES.CANCELLED]
+    };
+    
+    const allowedTransitions = validTransitions[fromStatus] || [];
+    
+    if (!allowedTransitions.includes(toStatus)) {
+      throw new Error(`لا يمكن تغيير الحالة من "${getStatusText(fromStatus)}" إلى "${getStatusText(toStatus)}"`);
+    }
+    
+    // التحقق من الصلاحيات
+    const permissionMap = {
+      [RETURN_STATUSES.PENDING]: 'create_returns',
+      [RETURN_STATUSES.APPROVED]: 'approve_returns',
+      [RETURN_STATUSES.REJECTED]: 'reject_returns',
+      [RETURN_STATUSES.COMPLETED]: 'approve_returns',
+      [RETURN_STATUSES.CANCELLED]: 'update_returns'
+    };
+    
+    const requiredPermission = permissionMap[toStatus];
+    if (requiredPermission && !checkPermission(requiredPermission, 'returns', userRole)) {
+      throw new Error(`ليس لديك صلاحية ${getPermissionText(requiredPermission)}`);
+    }
+    
+    return true;
+  };
+  
+  // تحويل رمز الحالة إلى نص
+  const getStatusText = (status) => {
+    const statusTexts = {
+      [RETURN_STATUSES.DRAFT]: 'مسودة',
+      [RETURN_STATUSES.PENDING]: 'معلق',
+      [RETURN_STATUSES.APPROVED]: 'معتمد',
+      [RETURN_STATUSES.COMPLETED]: 'مكتمل',
+      [RETURN_STATUSES.CANCELLED]: 'ملغي',
+      [RETURN_STATUSES.REJECTED]: 'مرفوض'
+    };
+    return statusTexts[status] || status;
+  };
+  
+  // تحويل رمز الصلاحية إلى نص
+  const getPermissionText = (permission) => {
+    const permissionTexts = {
+      'view_returns': 'عرض المرتجعات',
+      'create_returns': 'إنشاء المرتجعات',
+      'update_returns': 'تحديث المرتجعات',
+      'approve_returns': 'اعتماد المرتجعات',
+      'reject_returns': 'رفض المرتجعات',
+      'view_audit_logs': 'عرض سجل التتبع',
+      'view_treasury': 'عرض الخزينة'
+    };
+    return permissionTexts[permission] || permission;
+  };
+  
+  // التحقق من صحة بيانات المرتجع
+  const validateReturnData = (returnData, type) => {
+    const errors = [];
+    
+    if (!returnData.invoiceId) {
+      errors.push('يجب تحديد الفاتورة');
+    }
+    
+    if (!returnData.items || !Array.isArray(returnData.items) || returnData.items.length === 0) {
+      errors.push('يجب إضافة عناصر للمرتجع');
+    }
+    
+    if (!returnData.reason || returnData.reason.trim().length < 5) {
+      errors.push('يجب تحديد سبب الإرجاع (على الأقل 5 أحرف)');
+    }
+    
+    // التحقق من العناصر
+    if (returnData.items) {
+      returnData.items.forEach((item, index) => {
+        if (!item.productId) {
+          errors.push(`يجب تحديد المنتج في العنصر ${index + 1}`);
+        }
+        
+        const mainQty = parseInt(item.quantity) || 0;
+        const subQty = parseInt(item.subQuantity) || 0;
+        
+        if (mainQty < 0 || subQty < 0) {
+          errors.push(`لا يمكن أن تكون الكمية سالبة في العنصر ${index + 1}`);
+        }
+        
+        if (mainQty === 0 && subQty === 0) {
+          errors.push(`يجب تحديد كمية في العنصر ${index + 1}`);
+        }
+      });
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+  
+  // تحديث رصيد الخزينة
+  const updateTreasuryBalance = (amount, type = 'add', source = {}) => {
+    try {
+      let newBalance;
+      
+      if (type === 'add') {
+        newBalance = treasuryBalance + amount;
+      } else {
+        newBalance = treasuryBalance - amount;
+        if (newBalance < 0) {
+          throw new Error('الرصيد المتوفر في الخزينة غير كافٍ');
+        }
+      }
+      
+      setTreasuryBalance(newBalance);
+      saveData('bero_treasury_balance', newBalance);
+      
+      // تسجيل العملية في سجل التتبع
+      addAuditLog(
+        'TREASURY_UPDATE',
+        'treasury_balance',
+        'global',
+        currentUser?.id,
+        {
+          oldBalance: treasuryBalance,
+          newBalance,
+          amount,
+          type,
+          source
+        }
+      );
+      
+      return newBalance;
+    } catch (error) {
+      console.error('خطأ في تحديث رصيد الخزينة:', error);
+      throw error;
+    }
+  };
+  
+  // إنشاء إيصال تلقائي للخزينة
+  const createAutomaticReceipt = (returnData, type, approvedBy) => {
+    try {
+      const isPurchaseReturn = type === RETURN_TYPES.PURCHASE;
+      const amount = returnData.totalAmount;
+      const receiptData = {
+        amount: parseFloat(amount),
+        description: `إيصال تلقائي - ${isPurchaseReturn ? 'مرتجع مشتريات' : 'مرتجع مبيعات'}`,
+        reference: `RETURN-${returnData.id}`,
+        date: new Date().toISOString(),
+        category: isPurchaseReturn ? 'مرتجع مشتريات' : 'مرتجع مبيعات',
+        source: 'automatic',
+        returnId: returnData.id,
+        returnType: type,
+        approvedBy,
+        autoGenerated: true
+      };
+      
+      if (isPurchaseReturn) {
+        // مرتجع مشتريات = إضافة للخزينة
+        receiptData.fromType = 'supplier';
+        receiptData.fromId = returnData.supplierId;
+        return addCashReceipt(receiptData);
+      } else {
+        // مرتجع مبيعات = خصم من الخزينة
+        receiptData.toType = 'customer';
+        receiptData.toId = returnData.customerId;
+        return addCashDisbursement(receiptData);
+      }
+    } catch (error) {
+      console.error('خطأ في إنشاء الإيصال التلقائي:', error);
+      throw error;
+    }
   };
 
   // تحميل البيانات من LocalStorage
@@ -87,6 +344,9 @@ export const DataProvider = ({ children, orgId }) => {
     loadData('bero_cash_receipts', setCashReceipts);
     loadData('bero_cash_disbursements', setCashDisbursements);
     loadData('bero_transfers', setTransfers);
+    loadData('bero_audit_logs', setAuditLogs);
+    loadData('bero_permissions', setPermissions);
+    loadData('bero_current_user', setCurrentUser);
   };
 
   // حفض البيانات في LocalStorage
@@ -388,113 +648,478 @@ export const DataProvider = ({ children, orgId }) => {
     saveData('bero_purchase_invoices', updated);
   };
 
-  // ==================== دوال مرتجعات المشتريات ====================
+  // ==================== دوال مرتجعات المشتريات المتقدمة ====================
   
   const addPurchaseReturn = (returnData) => {
-    const { invoiceId, items, reason, notes } = returnData;
-    
-    // التحقق من وجود الفاتورة
-    const invoice = purchaseInvoices.find(inv => inv.id === invoiceId);
-    if (!invoice) {
-      throw new Error('الفاتورة غير موجودة');
-    }
-    
-    // حساب إجمالي المبلغ المرتجع
-    let totalAmount = 0;
-    
-    // التحقق من الكميات المرتجعة وتحديث المخزون
-    const updatedProducts = [...products];
-    
-    items.forEach(item => {
-      // البحث عن المنتج في الفاتورة الأصلية
-      const originalItem = invoice.items.find(i => i.productId === item.productId);
-      if (!originalItem) {
-        throw new Error('المنتج غير موجود في الفاتورة الأصلية');
+    try {
+      // التحقق من الصلاحيات
+      if (!checkPermission('create', 'returns')) {
+        throw new Error('ليس لديك صلاحية إنشاء مرتجعات مشتريات');
       }
       
-      // حساب الكميات المرتجعة مسبقاً
-      const previousReturns = purchaseReturns.filter(ret => 
-        ret.invoiceId === invoiceId && ret.status !== 'cancelled'
+      // التحقق من صحة البيانات
+      const validation = validateReturnData(returnData, RETURN_TYPES.PURCHASE);
+      if (!validation.isValid) {
+        throw new Error(`خطأ في البيانات: ${validation.errors.join(', ')}`);
+      }
+      
+      const { invoiceId, items, reason, notes } = returnData;
+      
+      // التحقق من وجود الفاتورة
+      const invoice = purchaseInvoices.find(inv => inv.id === invoiceId);
+      if (!invoice) {
+        throw new Error('الفاتورة غير موجودة');
+      }
+      
+      // حساب إجمالي المبلغ المرتجع
+      let totalAmount = 0;
+      const enrichedItems = [];
+      
+      // التحقق من الكميات المرتجعة
+      items.forEach(item => {
+        // البحث عن المنتج في الفاتورة الأصلية
+        const originalItem = invoice.items.find(i => i.productId === parseInt(item.productId));
+        if (!originalItem) {
+          throw new Error(`المنتج غير موجود في الفاتورة الأصلية`);
+        }
+        
+        // حساب الكميات المرتجعة مسبقاً (فقط المرتجعات المعتمدة والمكتملة)
+        const previousReturns = purchaseReturns.filter(ret => 
+          ret.invoiceId === invoiceId && 
+          [RETURN_STATUSES.APPROVED, RETURN_STATUSES.COMPLETED].includes(ret.status)
+        );
+        
+        let totalReturnedQty = 0;
+        previousReturns.forEach(ret => {
+          const retItem = ret.items.find(i => i.productId === parseInt(item.productId));
+          if (retItem) {
+            totalReturnedQty += (retItem.quantity || 0) + (retItem.subQuantity || 0);
+          }
+        });
+        
+        // الكمية المتاحة للإرجاع
+        const originalQty = (originalItem.quantity || 0) + (originalItem.subQuantity || 0);
+        const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
+        const availableQty = originalQty - totalReturnedQty;
+        
+        if (returnQty > availableQty) {
+          throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
+        }
+        
+        // حساب المبلغ المرتجع
+        const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
+                          (item.subQuantity || 0) * (originalItem.subPrice || 0);
+        totalAmount += itemAmount;
+        
+        // إثراء بيانات العنصر
+        const product = products.find(p => p.id === parseInt(item.productId));
+        enrichedItems.push({
+          ...item,
+          productId: parseInt(item.productId),
+          productName: product?.name || originalItem.productName || 'غير محدد',
+          originalPrice: originalItem.price,
+          originalSubPrice: originalItem.subPrice,
+          amount: itemAmount
+        });
+      });
+      
+      // إنشاء سجل المرتجع الجديد
+      const newReturn = {
+        id: Date.now(),
+        invoiceId,
+        supplierId: invoice.supplierId,
+        date: new Date().toISOString(),
+        createdBy: currentUser?.id || 'anonymous',
+        createdAt: new Date().toISOString(),
+        items: enrichedItems,
+        reason: reason.trim(),
+        notes: notes?.trim() || '',
+        totalAmount,
+        status: RETURN_STATUSES.DRAFT, // الحالة الافتراضية: مسودة
+        workflowHistory: [{
+          id: Date.now(),
+          action: 'created',
+          fromStatus: null,
+          toStatus: RETURN_STATUSES.DRAFT,
+          userId: currentUser?.id || 'anonymous',
+          timestamp: new Date().toISOString(),
+          notes: 'تم إنشاء المرتجع'
+        }],
+        treasuryEffect: {
+          type: 'add', // إضافة للخزينة عند الاعتماد
+          amount: totalAmount
+        },
+        inventoryEffect: {
+          type: 'deduct', // خصم من المخزون عند الاعتماد
+          items: enrichedItems.map(item => ({
+            productId: item.productId,
+            mainQuantity: item.quantity || 0,
+            subQuantity: item.subQuantity || 0
+          }))
+        },
+        metadata: {
+          version: 1,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: currentUser?.id || 'anonymous'
+        }
+      };
+      
+      // حفظ المرتجع
+      const updatedReturns = [newReturn, ...purchaseReturns];
+      setPurchaseReturns(updatedReturns);
+      saveData('bero_purchase_returns', updatedReturns);
+      
+      // تسجيل العملية في سجل التتبع
+      addAuditLog(
+        'CREATE_PURCHASE_RETURN',
+        'purchase_return',
+        newReturn.id,
+        currentUser?.id,
+        {
+          invoiceId,
+          totalAmount,
+          status: newReturn.status,
+          itemsCount: enrichedItems.length
+        }
       );
       
-      let totalReturnedQty = 0;
-      previousReturns.forEach(ret => {
-        const retItem = ret.items.find(i => i.productId === item.productId);
-        if (retItem) {
-          totalReturnedQty += (retItem.quantity || 0) + (retItem.subQuantity || 0);
+      console.log('تم إنشاء مرتجع مشتريات جديد:', newReturn);
+      return newReturn;
+      
+    } catch (error) {
+      console.error('خطأ في إضافة مرتجع مشتريات:', error);
+      throw error;
+    }
+  };
+
+  // تقديم مرتجع مشتريات للمراجعة
+  const submitPurchaseReturn = (returnId, notes = '') => {
+    try {
+      const returnRecord = purchaseReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      if (returnRecord.status !== RETURN_STATUSES.DRAFT) {
+        throw new Error(`لا يمكن تقديم المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('update', 'returns')) {
+        throw new Error('ليس لديك صلاحية تحديث المرتجعات');
+      }
+      
+      // تحديث حالة المرتجع
+      const updatedReturns = purchaseReturns.map(ret => 
+        ret.id === returnId 
+          ? {
+              ...ret,
+              status: RETURN_STATUSES.PENDING,
+              submittedAt: new Date().toISOString(),
+              submittedBy: currentUser?.id || 'anonymous',
+              workflowHistory: [
+                ...ret.workflowHistory,
+                {
+                  id: Date.now(),
+                  action: 'submitted',
+                  fromStatus: RETURN_STATUSES.DRAFT,
+                  toStatus: RETURN_STATUSES.PENDING,
+                  userId: currentUser?.id || 'anonymous',
+                  timestamp: new Date().toISOString(),
+                  notes: notes || 'تم تقديم المرتجع للمراجعة'
+                }
+              ],
+              metadata: {
+                ...ret.metadata,
+                lastModified: new Date().toISOString(),
+                lastModifiedBy: currentUser?.id || 'anonymous'
+              }
+            }
+          : ret
+      );
+      
+      setPurchaseReturns(updatedReturns);
+      saveData('bero_purchase_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'SUBMIT_PURCHASE_RETURN',
+        'purchase_return',
+        returnId,
+        currentUser?.id,
+        { fromStatus: RETURN_STATUSES.DRAFT, toStatus: RETURN_STATUSES.PENDING, notes }
+      );
+      
+      console.log(`تم تقديم مرتجع مشتريات ${returnId} للمراجعة`);
+      return updatedReturns.find(ret => ret.id === returnId);
+      
+    } catch (error) {
+      console.error('خطأ في تقديم مرتجع مشتريات:', error);
+      throw error;
+    }
+  };
+
+  // اعتماد مرتجع مشتريات
+  const approvePurchaseReturn = (returnId, notes = '') => {
+    try {
+      const returnRecord = purchaseReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      if (returnRecord.status !== RETURN_STATUSES.PENDING) {
+        throw new Error(`لا يمكن اعتماد المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('approve', 'returns')) {
+        throw new Error('ليس لديك صلاحية اعتماد المرتجعات');
+      }
+      
+      // تحديث المخزون (خصم الكميات)
+      const updatedProducts = [...products];
+      
+      returnRecord.items.forEach(item => {
+        const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
+        if (productIndex !== -1) {
+          const currentProduct = updatedProducts[productIndex];
+          const mainQtyToDeduct = item.quantity || 0;
+          const subQtyToDeduct = item.subQuantity || 0;
+          
+          const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQtyToDeduct;
+          const newSubQuantity = (currentProduct.subQuantity || 0) - subQtyToDeduct;
+          
+          if (newMainQuantity < 0) {
+            throw new Error(`الكمية الأساسية المتوفرة في المخزون غير كافية للمنتج`);
+          }
+          
+          if (newSubQuantity < 0 && subQtyToDeduct > 0) {
+            throw new Error(`الكمية الفرعية المتوفرة في المخزون غير كافية للمنتج`);
+          }
+          
+          updatedProducts[productIndex] = {
+            ...currentProduct,
+            mainQuantity: newMainQuantity,
+            subQuantity: newSubQuantity
+          };
         }
       });
       
-      // الكمية المتاحة للإرجاع
-      const originalQty = (originalItem.quantity || 0) + (originalItem.subQuantity || 0);
-      const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
-      const availableQty = originalQty - totalReturnedQty;
+      setProducts(updatedProducts);
+      saveData('bero_products', updatedProducts);
       
-      if (returnQty > availableQty) {
-        throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
-      }
+      // إنشاء إيصال تلقائي للخزينة
+      const receipt = createAutomaticReceipt(returnRecord, RETURN_TYPES.PURCHASE, currentUser?.id);
       
-      // خصم الكميات المرتجعة من المخزون (جمع الأساسي والفرعي معاً)
-      const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
-      if (productIndex !== -1) {
-        const currentProduct = updatedProducts[productIndex];
-        
-        // حساب الكمية الإجمالية المرتجعة (الأساسية + الفرعية)
-        const mainQtyToDeduct = item.quantity || 0;
-        const subQtyToDeduct = item.subQuantity || 0;
-        const totalQtyToDeduct = mainQtyToDeduct + subQtyToDeduct;
-        
-        // خصم المجموع من mainQuantity (لأن المشتريات تُضاف للـ mainQuantity فقط)
-        const newMainQuantity = (currentProduct.mainQuantity || 0) - totalQtyToDeduct;
-        
-        if (newMainQuantity < 0) {
-          throw new Error(`الكمية المتوفرة في المخزون غير كافية للمنتج`);
+      // تحديث حالة الفاتورة الأصلية
+      const updatedInvoices = purchaseInvoices.map(inv => {
+        if (inv.id === returnRecord.invoiceId) {
+          return { ...inv, hasReturns: true };
         }
-        
-        updatedProducts[productIndex] = {
-          ...currentProduct,
-          mainQuantity: newMainQuantity
-        };
+        return inv;
+      });
+      setPurchaseInvoices(updatedInvoices);
+      saveData('bero_purchase_invoices', updatedInvoices);
+      
+      // تحديث حالة المرتجع
+      const approvedReturn = {
+        ...returnRecord,
+        status: RETURN_STATUSES.APPROVED,
+        approvedAt: new Date().toISOString(),
+        approvedBy: currentUser?.id || 'anonymous',
+        approvedNotes: notes,
+        receiptId: receipt?.id,
+        workflowHistory: [
+          ...returnRecord.workflowHistory,
+          {
+            id: Date.now(),
+            action: 'approved',
+            fromStatus: RETURN_STATUSES.PENDING,
+            toStatus: RETURN_STATUSES.APPROVED,
+            userId: currentUser?.id || 'anonymous',
+            timestamp: new Date().toISOString(),
+            notes: notes || 'تم اعتماد المرتجع'
+          }
+        ],
+        metadata: {
+          ...returnRecord.metadata,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: currentUser?.id || 'anonymous'
+        }
+      };
+      
+      const updatedReturns = purchaseReturns.map(ret => 
+        ret.id === returnId ? approvedReturn : ret
+      );
+      
+      setPurchaseReturns(updatedReturns);
+      saveData('bero_purchase_returns', updatedReturns);
+      
+      // تسجيل العمليات
+      addAuditLog(
+        'APPROVE_PURCHASE_RETURN',
+        'purchase_return',
+        returnId,
+        currentUser?.id,
+        { 
+          fromStatus: RETURN_STATUSES.PENDING, 
+          toStatus: RETURN_STATUSES.APPROVED, 
+          notes,
+          receiptId: receipt?.id,
+          treasuryAmount: returnRecord.totalAmount
+        }
+      );
+      
+      addAuditLog(
+        'INVENTORY_UPDATE',
+        'inventory',
+        'purchase_return_approval',
+        currentUser?.id,
+        { items: returnRecord.items, action: 'deduct' }
+      );
+      
+      console.log(`تم اعتماد مرتجع مشتريات ${returnId}`);
+      return approvedReturn;
+      
+    } catch (error) {
+      console.error('خطأ في اعتماد مرتجع مشتريات:', error);
+      throw error;
+    }
+  };
+
+  // رفض مرتجع مشتريات
+  const rejectPurchaseReturn = (returnId, reason) => {
+    try {
+      const returnRecord = purchaseReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
       }
       
-      // حساب المبلغ المرتجع
-      const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
-                        (item.subQuantity || 0) * (originalItem.subPrice || 0);
-      totalAmount += itemAmount;
-    });
-    
-    // إنشاء سجل المرتجع
-    const newReturn = {
-      id: Date.now(),
-      invoiceId,
-      date: new Date().toISOString(),
-      items,
-      reason,
-      notes,
-      totalAmount,
-      status: 'completed' // completed, pending, cancelled
-    };
-    
-    // حفظ المرتجع
-    const updatedReturns = [newReturn, ...purchaseReturns];
-    setPurchaseReturns(updatedReturns);
-    saveData('bero_purchase_returns', updatedReturns);
-    
-    // تحديث المخزون
-    setProducts(updatedProducts);
-    saveData('bero_products', updatedProducts);
-    
-    // تحديث حالة الفاتورة الأصلية
-    const updatedInvoices = purchaseInvoices.map(inv => {
-      if (inv.id === invoiceId) {
-        return { ...inv, hasReturns: true };
+      if (returnRecord.status !== RETURN_STATUSES.PENDING) {
+        throw new Error(`لا يمكن رفض المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
       }
-      return inv;
-    });
-    setPurchaseInvoices(updatedInvoices);
-    saveData('bero_purchase_invoices', updatedInvoices);
-    
-    return newReturn;
+      
+      if (!checkPermission('reject', 'returns')) {
+        throw new Error('ليس لديك صلاحية رفض المرتجعات');
+      }
+      
+      if (!reason || reason.trim().length < 10) {
+        throw new Error('يجب إدخال سبب الرفض (على الأقل 10 أحرف)');
+      }
+      
+      const updatedReturns = purchaseReturns.map(ret => 
+        ret.id === returnId 
+          ? {
+              ...ret,
+              status: RETURN_STATUSES.REJECTED,
+              rejectedAt: new Date().toISOString(),
+              rejectedBy: currentUser?.id || 'anonymous',
+              rejectionReason: reason.trim(),
+              workflowHistory: [
+                ...ret.workflowHistory,
+                {
+                  id: Date.now(),
+                  action: 'rejected',
+                  fromStatus: RETURN_STATUSES.PENDING,
+                  toStatus: RETURN_STATUSES.REJECTED,
+                  userId: currentUser?.id || 'anonymous',
+                  timestamp: new Date().toISOString(),
+                  notes: `سبب الرفض: ${reason.trim()}`
+                }
+              ],
+              metadata: {
+                ...ret.metadata,
+                lastModified: new Date().toISOString(),
+                lastModifiedBy: currentUser?.id || 'anonymous'
+              }
+            }
+          : ret
+      );
+      
+      setPurchaseReturns(updatedReturns);
+      saveData('bero_purchase_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'REJECT_PURCHASE_RETURN',
+        'purchase_return',
+        returnId,
+        currentUser?.id,
+        { 
+          fromStatus: RETURN_STATUSES.PENDING, 
+          toStatus: RETURN_STATUSES.REJECTED, 
+          reason: reason.trim()
+        }
+      );
+      
+      console.log(`تم رفض مرتجع مشتريات ${returnId}`);
+      return updatedReturns.find(ret => ret.id === returnId);
+      
+    } catch (error) {
+      console.error('خطأ في رفض مرتجع مشتريات:', error);
+      throw error;
+    }
+  };
+
+  // تحديث حالة مرتجع مشتريات
+  const updatePurchaseReturnStatus = (returnId, newStatus, notes = '', userRole) => {
+    try {
+      const returnRecord = purchaseReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      const currentStatus = returnRecord.status;
+      
+      // التحقق من صحة الانتقال
+      validateStatusTransition(currentStatus, newStatus, userRole || currentUser?.role);
+      
+      const updatedReturns = purchaseReturns.map(ret => 
+        ret.id === returnId 
+          ? {
+              ...ret,
+              status: newStatus,
+              statusUpdatedAt: new Date().toISOString(),
+              statusUpdatedBy: currentUser?.id || 'anonymous',
+              statusNotes: notes,
+              workflowHistory: [
+                ...ret.workflowHistory,
+                {
+                  id: Date.now(),
+                  action: 'status_changed',
+                  fromStatus: currentStatus,
+                  toStatus: newStatus,
+                  userId: currentUser?.id || 'anonymous',
+                  timestamp: new Date().toISOString(),
+                  notes: notes || `تغيير الحالة من ${getStatusText(currentStatus)} إلى ${getStatusText(newStatus)}`
+                }
+              ],
+              metadata: {
+                ...ret.metadata,
+                lastModified: new Date().toISOString(),
+                lastModifiedBy: currentUser?.id || 'anonymous'
+              }
+            }
+          : ret
+      );
+      
+      setPurchaseReturns(updatedReturns);
+      saveData('bero_purchase_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'UPDATE_PURCHASE_RETURN_STATUS',
+        'purchase_return',
+        returnId,
+        currentUser?.id,
+        { fromStatus: currentStatus, toStatus: newStatus, notes }
+      );
+      
+      console.log(`تم تحديث حالة مرتجع مشتريات ${returnId} من ${getStatusText(currentStatus)} إلى ${getStatusText(newStatus)}`);
+      return updatedReturns.find(ret => ret.id === returnId);
+      
+    } catch (error) {
+      console.error('خطأ في تحديث حالة مرتجع مشتريات:', error);
+      throw error;
+    }
   };
   
   const deletePurchaseReturn = (returnId) => {
@@ -504,23 +1129,20 @@ export const DataProvider = ({ children, orgId }) => {
       throw new Error('المرتجع غير موجود');
     }
     
-    // إعادة الكميات المرتجعة للمخزون (جمع الأساسي والفرعي معاً)
+    // إعادة الكميات المرتجعة للمخزون بفصل الكميات الأساسية والفرعية
     const updatedProducts = [...products];
     
     returnRecord.items.forEach(item => {
       const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
       if (productIndex !== -1) {
         const currentProduct = updatedProducts[productIndex];
-        
-        // حساب الكمية الإجمالية المراد إعادتها (الأساسية + الفرعية)
         const mainQtyToAdd = item.quantity || 0;
         const subQtyToAdd = item.subQuantity || 0;
-        const totalQtyToAdd = mainQtyToAdd + subQtyToAdd;
         
-        // إعادة المجموع إلى mainQuantity (لأن المشتريات تُضاف للـ mainQuantity فقط)
         updatedProducts[productIndex] = {
           ...currentProduct,
-          mainQuantity: (currentProduct.mainQuantity || 0) + totalQtyToAdd
+          mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
+          subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
         };
       }
     });
@@ -670,104 +1292,763 @@ export const DataProvider = ({ children, orgId }) => {
     saveData('bero_sales_invoices', updated);
   };
 
-  // ==================== دوال مرتجعات المبيعات ====================
+  // ==================== دوال مرتجعات المبيعات المتقدمة ====================
   
   const addSalesReturn = (returnData) => {
-    const { invoiceId, items, reason, notes } = returnData;
-    
-    // التحقق من وجود الفاتورة
-    const invoice = salesInvoices.find(inv => inv.id === invoiceId);
-    if (!invoice) {
-      throw new Error('الفاتورة غير موجودة');
-    }
-    
-    // حساب إجمالي المبلغ المرتجع
-    let totalAmount = 0;
-    
-    // التحقق من الكميات المرتجعة وتحديث المخزون
-    const updatedProducts = [...products];
-    
-    items.forEach(item => {
-      // البحث عن المنتج في الفاتورة الأصلية
-      const originalItem = invoice.items.find(i => i.productId === item.productId);
-      if (!originalItem) {
-        throw new Error('المنتج غير موجود في الفاتورة الأصلية');
+    try {
+      // التحقق من الصلاحيات
+      if (!checkPermission('create', 'returns')) {
+        throw new Error('ليس لديك صلاحية إنشاء مرتجعات مبيعات');
       }
       
-      // حساب الكميات المرتجعة مسبقاً
-      const previousReturns = salesReturns.filter(ret => 
-        ret.invoiceId === invoiceId && ret.status !== 'cancelled'
+      // التحقق من صحة البيانات
+      const validation = validateReturnData(returnData, RETURN_TYPES.SALES);
+      if (!validation.isValid) {
+        throw new Error(`خطأ في البيانات: ${validation.errors.join(', ')}`);
+      }
+      
+      const { invoiceId, items, reason, notes } = returnData;
+      
+      // التحقق من وجود الفاتورة
+      const invoice = salesInvoices.find(inv => inv.id === invoiceId);
+      if (!invoice) {
+        throw new Error('الفاتورة غير موجودة');
+      }
+      
+      // حساب إجمالي المبلغ المرتجع
+      let totalAmount = 0;
+      const enrichedItems = [];
+      
+      // التحقق من الكميات المرتجعة
+      items.forEach(item => {
+        // البحث عن المنتج في الفاتورة الأصلية
+        const originalItem = invoice.items.find(i => i.productId === parseInt(item.productId));
+        if (!originalItem) {
+          throw new Error(`المنتج غير موجود في الفاتورة الأصلية`);
+        }
+        
+        // حساب الكميات المرتجعة مسبقاً (فقط المرتجعات المعتمدة والمكتملة)
+        const previousReturns = salesReturns.filter(ret => 
+          ret.invoiceId === invoiceId && 
+          [RETURN_STATUSES.APPROVED, RETURN_STATUSES.COMPLETED].includes(ret.status)
+        );
+        
+        let totalReturnedQty = 0;
+        previousReturns.forEach(ret => {
+          const retItem = ret.items.find(i => i.productId === parseInt(item.productId));
+          if (retItem) {
+            totalReturnedQty += (retItem.quantity || 0) + (retItem.subQuantity || 0);
+          }
+        });
+        
+        // الكمية المتاحة للإرجاع
+        const originalQty = (originalItem.quantity || 0) + (originalItem.subQuantity || 0);
+        const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
+        const availableQty = originalQty - totalReturnedQty;
+        
+        if (returnQty > availableQty) {
+          throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
+        }
+        
+        // حساب المبلغ المرتجع
+        const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
+                          (item.subQuantity || 0) * (originalItem.subPrice || 0);
+        totalAmount += itemAmount;
+        
+        // إثراء بيانات العنصر
+        const product = products.find(p => p.id === parseInt(item.productId));
+        enrichedItems.push({
+          ...item,
+          productId: parseInt(item.productId),
+          productName: product?.name || originalItem.productName || 'غير محدد',
+          originalPrice: originalItem.price,
+          originalSubPrice: originalItem.subPrice,
+          amount: itemAmount
+        });
+      });
+      
+      // إنشاء سجل المرتجع الجديد
+      const newReturn = {
+        id: Date.now(),
+        invoiceId,
+        customerId: invoice.customerId,
+        date: new Date().toISOString(),
+        createdBy: currentUser?.id || 'anonymous',
+        createdAt: new Date().toISOString(),
+        items: enrichedItems,
+        reason: reason.trim(),
+        notes: notes?.trim() || '',
+        totalAmount,
+        status: RETURN_STATUSES.DRAFT, // الحالة الافتراضية: مسودة
+        workflowHistory: [{
+          id: Date.now(),
+          action: 'created',
+          fromStatus: null,
+          toStatus: RETURN_STATUSES.DRAFT,
+          userId: currentUser?.id || 'anonymous',
+          timestamp: new Date().toISOString(),
+          notes: 'تم إنشاء المرتجع'
+        }],
+        treasuryEffect: {
+          type: 'deduct', // خصم من الخزينة عند الاعتماد
+          amount: totalAmount
+        },
+        inventoryEffect: {
+          type: 'add', // إضافة للمخزون عند الاعتماد
+          items: enrichedItems.map(item => ({
+            productId: item.productId,
+            mainQuantity: item.quantity || 0,
+            subQuantity: item.subQuantity || 0
+          }))
+        },
+        metadata: {
+          version: 1,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: currentUser?.id || 'anonymous'
+        }
+      };
+      
+      // حفظ المرتجع
+      const updatedReturns = [newReturn, ...salesReturns];
+      setSalesReturns(updatedReturns);
+      saveData('bero_sales_returns', updatedReturns);
+      
+      // تسجيل العملية في سجل التتبع
+      addAuditLog(
+        'CREATE_SALES_RETURN',
+        'sales_return',
+        newReturn.id,
+        currentUser?.id,
+        {
+          invoiceId,
+          totalAmount,
+          status: newReturn.status,
+          itemsCount: enrichedItems.length
+        }
       );
       
-      let totalReturnedQty = 0;
-      previousReturns.forEach(ret => {
-        const retItem = ret.items.find(i => i.productId === item.productId);
-        if (retItem) {
-          totalReturnedQty += (retItem.quantity || 0) + (retItem.subQuantity || 0);
+      console.log('تم إنشاء مرتجع مبيعات جديد:', newReturn);
+      return newReturn;
+      
+    } catch (error) {
+      console.error('خطأ في إضافة مرتجع مبيعات:', error);
+      throw error;
+    }
+  };
+
+  // تقديم مرتجع مبيعات للمراجعة
+  const submitSalesReturn = (returnId, notes = '') => {
+    try {
+      const returnRecord = salesReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      if (returnRecord.status !== RETURN_STATUSES.DRAFT) {
+        throw new Error(`لا يمكن تقديم المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('update', 'returns')) {
+        throw new Error('ليس لديك صلاحية تحديث المرتجعات');
+      }
+      
+      // تحديث حالة المرتجع
+      const updatedReturns = salesReturns.map(ret => 
+        ret.id === returnId 
+          ? {
+              ...ret,
+              status: RETURN_STATUSES.PENDING,
+              submittedAt: new Date().toISOString(),
+              submittedBy: currentUser?.id || 'anonymous',
+              workflowHistory: [
+                ...ret.workflowHistory,
+                {
+                  id: Date.now(),
+                  action: 'submitted',
+                  fromStatus: RETURN_STATUSES.DRAFT,
+                  toStatus: RETURN_STATUSES.PENDING,
+                  userId: currentUser?.id || 'anonymous',
+                  timestamp: new Date().toISOString(),
+                  notes: notes || 'تم تقديم المرتجع للمراجعة'
+                }
+              ],
+              metadata: {
+                ...ret.metadata,
+                lastModified: new Date().toISOString(),
+                lastModifiedBy: currentUser?.id || 'anonymous'
+              }
+            }
+          : ret
+      );
+      
+      setSalesReturns(updatedReturns);
+      saveData('bero_sales_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'SUBMIT_SALES_RETURN',
+        'sales_return',
+        returnId,
+        currentUser?.id,
+        { fromStatus: RETURN_STATUSES.DRAFT, toStatus: RETURN_STATUSES.PENDING, notes }
+      );
+      
+      console.log(`تم تقديم مرتجع مبيعات ${returnId} للمراجعة`);
+      return updatedReturns.find(ret => ret.id === returnId);
+      
+    } catch (error) {
+      console.error('خطأ في تقديم مرتجع مبيعات:', error);
+      throw error;
+    }
+  };
+
+  // اعتماد مرتجع مبيعات
+  const approveSalesReturn = (returnId, notes = '') => {
+    try {
+      const returnRecord = salesReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      if (returnRecord.status !== RETURN_STATUSES.PENDING) {
+        throw new Error(`لا يمكن اعتماد المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('approve', 'returns')) {
+        throw new Error('ليس لديك صلاحية اعتماد المرتجعات');
+      }
+      
+      // تحديث المخزون (إضافة الكميات)
+      const updatedProducts = [...products];
+      
+      returnRecord.items.forEach(item => {
+        const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
+        if (productIndex !== -1) {
+          const currentProduct = updatedProducts[productIndex];
+          const mainQtyToAdd = item.quantity || 0;
+          const subQtyToAdd = item.subQuantity || 0;
+          
+          updatedProducts[productIndex] = {
+            ...currentProduct,
+            mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
+            subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
+          };
         }
       });
       
-      // الكمية المتاحة للإرجاع
-      const originalQty = (parseInt(originalItem.quantity) || 0) + (parseInt(originalItem.subQuantity) || 0);
-      const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
-      const availableQty = originalQty - totalReturnedQty;
+      setProducts(updatedProducts);
+      saveData('bero_products', updatedProducts);
       
-      if (returnQty > availableQty) {
-        throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
+      // إنشاء إيصال تلقائي للخزينة
+      const receipt = createAutomaticReceipt(returnRecord, RETURN_TYPES.SALES, currentUser?.id);
+      
+      // تحديث حالة الفاتورة الأصلية
+      const updatedInvoices = salesInvoices.map(inv => {
+        if (inv.id === returnRecord.invoiceId) {
+          return { ...inv, hasReturns: true };
+        }
+        return inv;
+      });
+      setSalesInvoices(updatedInvoices);
+      saveData('bero_sales_invoices', updatedInvoices);
+      
+      // تحديث حالة المرتجع
+      const approvedReturn = {
+        ...returnRecord,
+        status: RETURN_STATUSES.APPROVED,
+        approvedAt: new Date().toISOString(),
+        approvedBy: currentUser?.id || 'anonymous',
+        approvedNotes: notes,
+        receiptId: receipt?.id,
+        workflowHistory: [
+          ...returnRecord.workflowHistory,
+          {
+            id: Date.now(),
+            action: 'approved',
+            fromStatus: RETURN_STATUSES.PENDING,
+            toStatus: RETURN_STATUSES.APPROVED,
+            userId: currentUser?.id || 'anonymous',
+            timestamp: new Date().toISOString(),
+            notes: notes || 'تم اعتماد المرتجع'
+          }
+        ],
+        metadata: {
+          ...returnRecord.metadata,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: currentUser?.id || 'anonymous'
+        }
+      };
+      
+      const updatedReturns = salesReturns.map(ret => 
+        ret.id === returnId ? approvedReturn : ret
+      );
+      
+      setSalesReturns(updatedReturns);
+      saveData('bero_sales_returns', updatedReturns);
+      
+      // تسجيل العمليات
+      addAuditLog(
+        'APPROVE_SALES_RETURN',
+        'sales_return',
+        returnId,
+        currentUser?.id,
+        { 
+          fromStatus: RETURN_STATUSES.PENDING, 
+          toStatus: RETURN_STATUSES.APPROVED, 
+          notes,
+          receiptId: receipt?.id,
+          treasuryAmount: returnRecord.totalAmount
+        }
+      );
+      
+      addAuditLog(
+        'INVENTORY_UPDATE',
+        'inventory',
+        'sales_return_approval',
+        currentUser?.id,
+        { items: returnRecord.items, action: 'add' }
+      );
+      
+      console.log(`تم اعتماد مرتجع مبيعات ${returnId}`);
+      return approvedReturn;
+      
+    } catch (error) {
+      console.error('خطأ في اعتماد مرتجع مبيعات:', error);
+      throw error;
+    }
+  };
+
+  // رفض مرتجع مبيعات
+  const rejectSalesReturn = (returnId, reason) => {
+    try {
+      const returnRecord = salesReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
       }
       
-      // إضافة الكميات المرتجعة للمخزون (عكس البيع) - فصل الكميات الأساسية والفرعية
-      const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
-      if (productIndex !== -1) {
-        const currentProduct = updatedProducts[productIndex];
-        const mainQtyToAdd = item.quantity || 0;
-        const subQtyToAdd = item.subQuantity || 0;
+      if (returnRecord.status !== RETURN_STATUSES.PENDING) {
+        throw new Error(`لا يمكن رفض المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('reject', 'returns')) {
+        throw new Error('ليس لديك صلاحية رفض المرتجعات');
+      }
+      
+      if (!reason || reason.trim().length < 10) {
+        throw new Error('يجب إدخال سبب الرفض (على الأقل 10 أحرف)');
+      }
+      
+      const updatedReturns = salesReturns.map(ret => 
+        ret.id === returnId 
+          ? {
+              ...ret,
+              status: RETURN_STATUSES.REJECTED,
+              rejectedAt: new Date().toISOString(),
+              rejectedBy: currentUser?.id || 'anonymous',
+              rejectionReason: reason.trim(),
+              workflowHistory: [
+                ...ret.workflowHistory,
+                {
+                  id: Date.now(),
+                  action: 'rejected',
+                  fromStatus: RETURN_STATUSES.PENDING,
+                  toStatus: RETURN_STATUSES.REJECTED,
+                  userId: currentUser?.id || 'anonymous',
+                  timestamp: new Date().toISOString(),
+                  notes: `سبب الرفض: ${reason.trim()}`
+                }
+              ],
+              metadata: {
+                ...ret.metadata,
+                lastModified: new Date().toISOString(),
+                lastModifiedBy: currentUser?.id || 'anonymous'
+              }
+            }
+          : ret
+      );
+      
+      setSalesReturns(updatedReturns);
+      saveData('bero_sales_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'REJECT_SALES_RETURN',
+        'sales_return',
+        returnId,
+        currentUser?.id,
+        { 
+          fromStatus: RETURN_STATUSES.PENDING, 
+          toStatus: RETURN_STATUSES.REJECTED, 
+          reason: reason.trim()
+        }
+      );
+      
+      console.log(`تم رفض مرتجع مبيعات ${returnId}`);
+      return updatedReturns.find(ret => ret.id === returnId);
+      
+    } catch (error) {
+      console.error('خطأ في رفض مرتجع مبيعات:', error);
+      throw error;
+    }
+  };
+
+  // تحديث حالة مرتجع مبيعات
+  const updateSalesReturnStatus = (returnId, newStatus, notes = '', userRole) => {
+    try {
+      const returnRecord = salesReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      const currentStatus = returnRecord.status;
+      
+      // التحقق من صحة الانتقال
+      validateStatusTransition(currentStatus, newStatus, userRole || currentUser?.role);
+      
+      const updatedReturns = salesReturns.map(ret => 
+        ret.id === returnId 
+          ? {
+              ...ret,
+              status: newStatus,
+              statusUpdatedAt: new Date().toISOString(),
+              statusUpdatedBy: currentUser?.id || 'anonymous',
+              statusNotes: notes,
+              workflowHistory: [
+                ...ret.workflowHistory,
+                {
+                  id: Date.now(),
+                  action: 'status_changed',
+                  fromStatus: currentStatus,
+                  toStatus: newStatus,
+                  userId: currentUser?.id || 'anonymous',
+                  timestamp: new Date().toISOString(),
+                  notes: notes || `تغيير الحالة من ${getStatusText(currentStatus)} إلى ${getStatusText(newStatus)}`
+                }
+              ],
+              metadata: {
+                ...ret.metadata,
+                lastModified: new Date().toISOString(),
+                lastModifiedBy: currentUser?.id || 'anonymous'
+              }
+            }
+          : ret
+      );
+      
+      setSalesReturns(updatedReturns);
+      saveData('bero_sales_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'UPDATE_SALES_RETURN_STATUS',
+        'sales_return',
+        returnId,
+        currentUser?.id,
+        { fromStatus: currentStatus, toStatus: newStatus, notes }
+      );
+      
+      console.log(`تم تحديث حالة مرتجع مبيعات ${returnId} من ${getStatusText(currentStatus)} إلى ${getStatusText(newStatus)}`);
+      return updatedReturns.find(ret => ret.id === returnId);
+      
+    } catch (error) {
+      console.error('خطأ في تحديث حالة مرتجع مبيعات:', error);
+      throw error;
+    }
+  };
+
+  // إكمال مرتجع مشتريات
+  const completePurchaseReturn = (returnId, notes = '') => {
+    try {
+      const returnRecord = purchaseReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      if (returnRecord.status !== RETURN_STATUSES.APPROVED) {
+        throw new Error(`لا يمكن إكمال المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('update', 'returns')) {
+        throw new Error('ليس لديك صلاحية تحديث المرتجعات');
+      }
+      
+      const completedReturn = {
+        ...returnRecord,
+        status: RETURN_STATUSES.COMPLETED,
+        completedAt: new Date().toISOString(),
+        completedBy: currentUser?.id || 'anonymous',
+        completionNotes: notes,
+        workflowHistory: [
+          ...returnRecord.workflowHistory,
+          {
+            id: Date.now(),
+            action: 'completed',
+            fromStatus: RETURN_STATUSES.APPROVED,
+            toStatus: RETURN_STATUSES.COMPLETED,
+            userId: currentUser?.id || 'anonymous',
+            timestamp: new Date().toISOString(),
+            notes: notes || 'تم إكمال المرتجع'
+          }
+        ],
+        metadata: {
+          ...returnRecord.metadata,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: currentUser?.id || 'anonymous',
+          version: (returnRecord.metadata?.version || 1) + 1
+        }
+      };
+      
+      const updatedReturns = purchaseReturns.map(ret => 
+        ret.id === returnId ? completedReturn : ret
+      );
+      
+      setPurchaseReturns(updatedReturns);
+      saveData('bero_purchase_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'COMPLETE_PURCHASE_RETURN',
+        'purchase_return',
+        returnId,
+        currentUser?.id,
+        { 
+          fromStatus: RETURN_STATUSES.APPROVED, 
+          toStatus: RETURN_STATUSES.COMPLETED, 
+          notes,
+          totalAmount: returnRecord.totalAmount
+        }
+      );
+      
+      console.log(`تم إكمال مرتجع مشتريات ${returnId}`);
+      return completedReturn;
+      
+    } catch (error) {
+      console.error('خطأ في إكمال مرتجع مشتريات:', error);
+      throw error;
+    }
+  };
+
+  // إكمال مرتجع مبيعات
+  const completeSalesReturn = (returnId, notes = '') => {
+    try {
+      const returnRecord = salesReturns.find(ret => ret.id === returnId);
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      if (returnRecord.status !== RETURN_STATUSES.APPROVED) {
+        throw new Error(`لا يمكن إكمال المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('update', 'returns')) {
+        throw new Error('ليس لديك صلاحية تحديث المرتجعات');
+      }
+      
+      const completedReturn = {
+        ...returnRecord,
+        status: RETURN_STATUSES.COMPLETED,
+        completedAt: new Date().toISOString(),
+        completedBy: currentUser?.id || 'anonymous',
+        completionNotes: notes,
+        workflowHistory: [
+          ...returnRecord.workflowHistory,
+          {
+            id: Date.now(),
+            action: 'completed',
+            fromStatus: RETURN_STATUSES.APPROVED,
+            toStatus: RETURN_STATUSES.COMPLETED,
+            userId: currentUser?.id || 'anonymous',
+            timestamp: new Date().toISOString(),
+            notes: notes || 'تم إكمال المرتجع'
+          }
+        ],
+        metadata: {
+          ...returnRecord.metadata,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: currentUser?.id || 'anonymous',
+          version: (returnRecord.metadata?.version || 1) + 1
+        }
+      };
+      
+      const updatedReturns = salesReturns.map(ret => 
+        ret.id === returnId ? completedReturn : ret
+      );
+      
+      setSalesReturns(updatedReturns);
+      saveData('bero_sales_returns', updatedReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'COMPLETE_SALES_RETURN',
+        'sales_return',
+        returnId,
+        currentUser?.id,
+        { 
+          fromStatus: RETURN_STATUSES.APPROVED, 
+          toStatus: RETURN_STATUSES.COMPLETED, 
+          notes,
+          totalAmount: returnRecord.totalAmount
+        }
+      );
+      
+      console.log(`تم إكمال مرتجع مبيعات ${returnId}`);
+      return completedReturn;
+      
+    } catch (error) {
+      console.error('خطأ في إكمال مرتجع مبيعات:', error);
+      throw error;
+    }
+  };
+
+  // إلغاء مرتجع
+  const cancelReturn = (returnId, type, reason) => {
+    try {
+      if (!reason || reason.trim().length < 10) {
+        throw new Error('يجب إدخال سبب الإلغاء (على الأقل 10 أحرف)');
+      }
+      
+      let returnRecord, updatedReturns, setReturnsFunc, saveKey;
+      
+      if (type === RETURN_TYPES.PURCHASE) {
+        returnRecord = purchaseReturns.find(ret => ret.id === returnId);
+        setReturnsFunc = setPurchaseReturns;
+        saveKey = 'bero_purchase_returns';
+      } else {
+        returnRecord = salesReturns.find(ret => ret.id === returnId);
+        setReturnsFunc = setSalesReturns;
+        saveKey = 'bero_sales_returns';
+      }
+      
+      if (!returnRecord) {
+        throw new Error('المرتجع غير موجود');
+      }
+      
+      if (![RETURN_STATUSES.DRAFT, RETURN_STATUSES.PENDING, RETURN_STATUSES.APPROVED].includes(returnRecord.status)) {
+        throw new Error(`لا يمكن إلغاء المرتجع في الحالة الحالية: ${getStatusText(returnRecord.status)}`);
+      }
+      
+      if (!checkPermission('update', 'returns')) {
+        throw new Error('ليس لديك صلاحية تحديث المرتجعات');
+      }
+      
+      // إذا كان المرتجع معتمد، نحتاج إلى عكس العمليات
+      if (returnRecord.status === RETURN_STATUSES.APPROVED) {
+        // عكس عمليات المخزون
+        const updatedProducts = [...products];
+        returnRecord.items.forEach(item => {
+          const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
+          if (productIndex !== -1) {
+            const currentProduct = updatedProducts[productIndex];
+            const mainQty = item.quantity || 0;
+            const subQty = item.subQuantity || 0;
+            
+            if (type === RETURN_TYPES.PURCHASE) {
+              // عكس خصم مرتجع مشتريات = إضافة للمخزون
+              updatedProducts[productIndex] = {
+                ...currentProduct,
+                mainQuantity: (currentProduct.mainQuantity || 0) + mainQty,
+                subQuantity: (currentProduct.subQuantity || 0) + subQty
+              };
+            } else {
+              // عكس إضافة مرتجع مبيعات = خصم من المخزون
+              const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQty;
+              const newSubQuantity = (currentProduct.subQuantity || 0) - subQty;
+              
+              if (newMainQuantity < 0 || newSubQuantity < 0) {
+                throw new Error(`لا يمكن إلغاء المرتجع: سيؤدي إلى كمية سالبة في المخزون`);
+              }
+              
+              updatedProducts[productIndex] = {
+                ...currentProduct,
+                mainQuantity: newMainQuantity,
+                subQuantity: newSubQuantity
+              };
+            }
+          }
+        });
         
-        updatedProducts[productIndex] = {
-          ...currentProduct,
-          mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
-          subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
-        };
+        setProducts(updatedProducts);
+        saveData('bero_products', updatedProducts);
+        
+        // عكس عمليات الخزينة
+        if (returnRecord.receiptId) {
+          try {
+            const receipt = cashReceipts.find(r => r.id === returnRecord.receiptId) || 
+                           cashDisbursements.find(r => r.id === returnRecord.receiptId);
+            if (receipt) {
+              if (type === RETURN_TYPES.PURCHASE) {
+                // عكس إضافة مرتجع مشتريات = خصم من الخزينة
+                updateTreasuryBalance(returnRecord.totalAmount, 'subtract', { 
+                  type: 'purchase_return_cancellation',
+                  returnId: returnId 
+                });
+              } else {
+                // عكس خصم مرتجع مبيعات = إضافة للخزينة
+                updateTreasuryBalance(returnRecord.totalAmount, 'add', { 
+                  type: 'sales_return_cancellation',
+                  returnId: returnId 
+                });
+              }
+            }
+          } catch (treasuryError) {
+            console.warn('تحذير: لم يتم عكس عملية الخزينة:', treasuryError);
+          }
+        }
       }
       
-      // حساب المبلغ المرتجع - حساب صحيح للكميات الأساسية والفرعية
-      const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
-                        (item.subQuantity || 0) * (originalItem.subPrice || 0);
-      totalAmount += itemAmount;
-    });
-    
-    // إنشاء سجل المرتجع
-    const newReturn = {
-      id: Date.now(),
-      invoiceId,
-      date: new Date().toISOString(),
-      items,
-      reason,
-      notes,
-      totalAmount,
-      status: 'completed' // completed, pending, cancelled
-    };
-    
-    // حفظ المرتجع
-    const updatedReturns = [newReturn, ...salesReturns];
-    setSalesReturns(updatedReturns);
-    saveData('bero_sales_returns', updatedReturns);
-    
-    // تحديث المخزون
-    setProducts(updatedProducts);
-    saveData('bero_products', updatedProducts);
-    
-    // تحديث حالة الفاتورة الأصلية
-    const updatedInvoices = salesInvoices.map(inv => {
-      if (inv.id === invoiceId) {
-        return { ...inv, hasReturns: true };
+      const cancelledReturn = {
+        ...returnRecord,
+        status: RETURN_STATUSES.CANCELLED,
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: currentUser?.id || 'anonymous',
+        cancellationReason: reason.trim(),
+        workflowHistory: [
+          ...returnRecord.workflowHistory,
+          {
+            id: Date.now(),
+            action: 'cancelled',
+            fromStatus: returnRecord.status,
+            toStatus: RETURN_STATUSES.CANCELLED,
+            userId: currentUser?.id || 'anonymous',
+            timestamp: new Date().toISOString(),
+            notes: `سبب الإلغاء: ${reason.trim()}`
+          }
+        ],
+        metadata: {
+          ...returnRecord.metadata,
+          lastModified: new Date().toISOString(),
+          lastModifiedBy: currentUser?.id || 'anonymous'
+        }
+      };
+      
+      const newReturns = returnRecord ? [cancelledReturn, ...purchaseReturns.filter(ret => ret.id !== returnId)] : purchaseReturns;
+      if (type === RETURN_TYPES.SALES) {
+        newReturns = [cancelledReturn, ...salesReturns.filter(ret => ret.id !== returnId)];
       }
-      return inv;
-    });
-    setSalesInvoices(updatedInvoices);
-    saveData('bero_sales_invoices', updatedInvoices);
-    
-    return newReturn;
+      
+      setReturnsFunc(newReturns);
+      saveData(saveKey, newReturns);
+      
+      // تسجيل العملية
+      addAuditLog(
+        'CANCEL_RETURN',
+        `${type}_return`,
+        returnId,
+        currentUser?.id,
+        { 
+          fromStatus: returnRecord.status, 
+          toStatus: RETURN_STATUSES.CANCELLED, 
+          reason: reason.trim(),
+          hadInventoryEffect: returnRecord.status === RETURN_STATUSES.APPROVED
+        }
+      );
+      
+      console.log(`تم إلغاء مرتجع ${type} ${returnId}`);
+      return cancelledReturn;
+      
+    } catch (error) {
+      console.error(`خطأ في إلغاء مرتجع ${type}:`, error);
+      throw error;
+    }
   };
   
   const deleteSalesReturn = (returnId) => {
@@ -1110,6 +2391,7 @@ export const DataProvider = ({ children, orgId }) => {
   };
 
   const value = {
+    // البيانات الأساسية
     warehouses,
     products,
     categories,
@@ -1125,41 +2407,104 @@ export const DataProvider = ({ children, orgId }) => {
     cashReceipts,
     cashDisbursements,
     transfers,
+    auditLogs,
+    permissions,
+    currentUser,
+    
+    // ثوابت النظام
+    RETURN_STATUSES,
+    RETURN_TYPES,
+    USER_ROLES,
+    
+    // دوال إدارة المخازن
     addWarehouse,
     updateWarehouse,
     deleteWarehouse,
+    
+    // دوال إدارة الفئات
     addCategory,
     updateCategory,
     deleteCategory,
+    
+    // دوال إدارة المنتجات
     addProduct,
     updateProduct,
     deleteProduct,
+    
+    // دوال إدارة الموردين
     addSupplier,
     updateSupplier,
     deleteSupplier,
+    
+    // دوال إدارة العملاء
     addCustomer,
     updateCustomer,
     deleteCustomer,
+    
+    // دوال فواتير المشتريات
     addPurchaseInvoice,
     updatePurchaseInvoice,
     deletePurchaseInvoice,
+    
+    // دوال مرتجعات المشتريات الأساسية
     addPurchaseReturn,
     deletePurchaseReturn,
+    
+    // دوال مرتجعات المشتريات المتقدمة
+    submitPurchaseReturn,
+    approvePurchaseReturn,
+    rejectPurchaseReturn,
+    updatePurchaseReturnStatus,
+    completePurchaseReturn,
+    
+    // دوال فواتير المبيعات
     addSalesInvoice,
     deleteSalesInvoice,
+    
+    // دوال مرتجعات المبيعات الأساسية
     addSalesReturn,
     deleteSalesReturn,
+    
+    // دوال مرتجعات المبيعات المتقدمة
+    submitSalesReturn,
+    approveSalesReturn,
+    rejectSalesReturn,
+    updateSalesReturnStatus,
+    completeSalesReturn,
+    
+    // دوال إلغاء المرتجعات
+    cancelReturn,
+    
+    // دوال الخزينة
     addCashReceipt,
     updateCashReceipt,
     deleteCashReceipt,
     addCashDisbursement,
     updateCashDisbursement,
     deleteCashDisbursement,
+    updateTreasuryBalance,
+    createAutomaticReceipt,
+    
+    // دوال حسابات العملاء والموردين
     getCustomerBalance,
     getSupplierBalance,
     getAllCustomerBalances,
     getAllSupplierBalances,
-    transferProduct
+    
+    // دوال التحويلات
+    transferProduct,
+    
+    // دوال النظام المتقدم
+    addAuditLog,
+    checkPermission,
+    validateStatusTransition,
+    getStatusText,
+    getPermissionText,
+    validateReturnData,
+    
+    // دوال إدارة المستخدم
+    setCurrentUser,
+    setPermissions
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

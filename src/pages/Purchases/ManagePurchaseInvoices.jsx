@@ -2,7 +2,7 @@
 // Manage Purchase Invoices - إدارة فواتير المشتريات (محسّنة)
 // ======================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -14,11 +14,36 @@ import { printInvoiceDirectly } from '../../utils/printUtils';
 
 const ManagePurchaseInvoices = () => {
   const navigate = useNavigate();
-  const { openNewTab, switchTab, tabs: globalTabs } = useTab();
+  const { openNewTab, switchTab, setActiveTabId } = useTab();
   const { purchaseInvoices, suppliers, products, warehouses, purchaseReturns, deletePurchaseInvoice } = useData();
   const { showSuccess, showError } = useNotification();
   const { settings } = useSystemSettings();
   const { hasPermission } = useAuth();
+  const [tabs, setTabs] = useState(() => {
+    // جلب التبويبات من localStorage أو استخدام افتراضي
+    const savedTabs = localStorage.getItem('app-tabs');
+    if (savedTabs) {
+      try {
+        return JSON.parse(savedTabs);
+      } catch (e) {
+        console.error('خطأ في قراءة بيانات التبويبات:', e);
+      }
+    }
+    return [
+      {
+        id: 'tab-1',
+        path: '/dashboard',
+        title: 'لوحة التحكم',
+        icon: '🏠',
+        isMain: true
+      }
+    ];
+  });
+
+  // حفظ التبويبات في localStorage عند التحديث
+  useEffect(() => {
+    localStorage.setItem('app-tabs', JSON.stringify(tabs));
+  }, [tabs]);
 
   // دالة تنسيق العملة باستخدام إعدادات النظام
   const formatCurrency = (amount) => {
@@ -65,21 +90,30 @@ const ManagePurchaseInvoices = () => {
     
     const tabPath = `/purchases/return/${invoice.id}`;
     
-    // فحص ما إذا كان التبويب مفتوح مسبقاً في التبويبات العامة
-    const existingTab = globalTabs.find(tab => tab.path === tabPath);
+    // فحص ما إذا كان التبويب مفتوح مسبقاً
+    const existingTab = tabs.find(tab => tab.path === tabPath);
     
     if (existingTab) {
       // إذا كان التبويب موجود مسبقاً، نقوم بتفعيله
       console.log('📋 تفعيل التبويب الموجود مسبقاً:', existingTab.id);
-      switchTab(existingTab.id);
+      setActiveTabId(existingTab.id);
+      navigate(tabPath);
     } else {
-      // فتح تبويب جديد باستخدام TabContext
+      // فتح تبويب جديد مع المسار المحدد
       console.log('✨ إنشاء تبويب جديد لصفحة إرجاع الفاتورة');
-      openNewTab({
+      const newTabId = `tab-${Date.now()}`;
+      const newTab = {
+        id: newTabId,
         path: tabPath,
         title: `إرجاع فاتورة #${invoice.id}`,
-        icon: '↩️'
-      });
+        icon: '↩️',
+        isMain: false
+      };
+      
+      // إضافة التبويب الجديد وتفعيله
+      setTabs(prevTabs => [...prevTabs, newTab]);
+      setActiveTabId(newTabId);
+      navigate(tabPath);
       
       console.log('🎉 تم إنشاء وتفعيل التبويب بنجاح');
     }
