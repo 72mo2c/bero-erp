@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTab } from '../../contexts/TabContext';
 import { FaFileInvoice, FaEdit, FaTrash, FaPrint, FaSearch, FaFilter, FaUndo, FaExclamationTriangle } from 'react-icons/fa';
 import { printInvoiceDirectly } from '../../utils/printUtils';
+import PurchaseReturnModal from '../../components/Returns/PurchaseReturnModal';
 
 const ManagePurchaseInvoices = () => {
   const navigate = useNavigate();
@@ -69,6 +70,8 @@ const ManagePurchaseInvoices = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [paymentTypeFilter, setPaymentTypeFilter] = useState('all');
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [invoiceForReturn, setInvoiceForReturn] = useState(null);
 
   // تصفية الفواتير
   const filteredInvoices = purchaseInvoices.filter(invoice => {
@@ -86,37 +89,25 @@ const ManagePurchaseInvoices = () => {
       return;
     }
     
-    console.log('🔄 فتح صفحة إرجاع الفاتورة:', invoice.id);
+    console.log('🔄 فتح نافذة إرجاع الفاتورة:', invoice.id);
     
-    const tabPath = `/purchases/return/${invoice.id}`;
-    
-    // فحص ما إذا كان التبويب مفتوح مسبقاً
-    const existingTab = tabs.find(tab => tab.path === tabPath);
-    
-    if (existingTab) {
-      // إذا كان التبويب موجود مسبقاً، نقوم بتفعيله
-      console.log('📋 تفعيل التبويب الموجود مسبقاً:', existingTab.id);
-      setActiveTabId(existingTab.id);
-      navigate(tabPath);
-    } else {
-      // فتح تبويب جديد مع المسار المحدد
-      console.log('✨ إنشاء تبويب جديد لصفحة إرجاع الفاتورة');
-      const newTabId = `tab-${Date.now()}`;
-      const newTab = {
-        id: newTabId,
-        path: tabPath,
-        title: `إرجاع فاتورة #${invoice.id}`,
-        icon: '↩️',
-        isMain: false
-      };
-      
-      // إضافة التبويب الجديد وتفعيله
-      setTabs(prevTabs => [...prevTabs, newTab]);
-      setActiveTabId(newTabId);
-      navigate(tabPath);
-      
-      console.log('🎉 تم إنشاء وتفعيل التبويب بنجاح');
-    }
+    // فتح النافذة المنبثقة للإرجاع
+    setInvoiceForReturn(invoice);
+    setShowReturnModal(true);
+  };
+
+  // إغلاق نافذة الإرجاع
+  const handleCloseReturnModal = () => {
+    setShowReturnModal(false);
+    setInvoiceForReturn(null);
+  };
+
+  // التعامل مع حفظ الإرجاع
+  const handleReturnSaved = (returnRecord) => {
+    console.log('✅ تم حفظ عملية الإرجاع:', returnRecord.id);
+    showSuccess('تم حفظ عملية الإرجاع بنجاح');
+    // يمكن هنا إضافة تحديث للبيانات أو إغلاق التبويب
+  };
   };
 
   const handleView = (invoice) => {
@@ -495,6 +486,14 @@ const ManagePurchaseInvoices = () => {
           </div>
         </div>
       )}
+
+      {/* نافذة إرجاع المشتريات */}
+      <PurchaseReturnModal
+        isOpen={showReturnModal}
+        onClose={handleCloseReturnModal}
+        invoice={invoiceForReturn}
+        onReturnSaved={handleReturnSaved}
+      />
     </div>
   );
 };
