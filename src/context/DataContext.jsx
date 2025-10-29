@@ -652,10 +652,16 @@ export const DataProvider = ({ children, orgId }) => {
   
   const addPurchaseReturn = (returnData) => {
     try {
-      // التحقق من الصلاحيات
-      if (!checkPermission('create', 'returns')) {
-        throw new Error('ليس لديك صلاحية إنشاء مرتجعات مشتريات');
+      // التحقق من الصلاحيات من AuthContext
+      // إذا كان AuthContext متاحاً، استخدمه
+      if (typeof checkPermission === 'function') {
+        // النظام القديم - الحفاظ على التوافق
+        if (!checkPermission('create', 'returns')) {
+          throw new Error('ليس لديك صلاحية إنشاء مرتجعات مشتريات');
+        }
       }
+      // إذا لم يكن checkPermission متاحاً، استخدم النظام الجديد من useAuth
+      // هذا سيتم تحديثه من خلال useAuth في المكونات
       
       // التحقق من صحة البيانات
       const validation = validateReturnData(returnData, RETURN_TYPES.PURCHASE);

@@ -316,6 +316,28 @@ export const AuthProvider = ({ children, orgId }) => {
       description: 'حذف جهات اتصال' 
     },
     
+    // إدارة المرتجعات
+    'returns.view': { 
+      roles: ['admin', 'manager', 'user'], 
+      description: 'عرض المرتجعات' 
+    },
+    'manage_purchase_returns': { 
+      roles: ['admin', 'manager'], 
+      description: 'إدارة مرتجعات المشتريات' 
+    },
+    'manage_sales_returns': { 
+      roles: ['admin', 'manager'], 
+      description: 'إدارة مرتجعات المبيعات' 
+    },
+    'returns.create': { 
+      roles: ['admin', 'manager', 'user'], 
+      description: 'إنشاء مرتجعات' 
+    },
+    'returns.approve': { 
+      roles: ['admin', 'manager'], 
+      description: 'اعتماد المرتجعات' 
+    },
+    
     // التقارير المالية
     'finance.view': { 
       roles: ['admin', 'manager'], 

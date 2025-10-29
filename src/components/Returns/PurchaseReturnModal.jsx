@@ -36,6 +36,7 @@ const PurchaseReturnModal = ({
   const [returnNotes, setReturnNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [calculated, setCalculated] = useState(false);
+  const [supplierInfo, setSupplierInfo] = useState(null);
 
   // تنسيق العملة
   const formatCurrency = (amount) => {
@@ -80,6 +81,10 @@ const PurchaseReturnModal = ({
   // تهيئة البيانات عند فتح النافذة
   useEffect(() => {
     if (isOpen && invoice) {
+      // جلب معلومات المورد
+      const supplier = suppliers.find(s => s.id === parseInt(invoice.supplierId));
+      setSupplierInfo(supplier);
+      
       // تحويل عناصر الفاتورة إلى عناصر إرجاع
       const items = invoice.items?.map(item => {
         const product = products.find(p => p.id === parseInt(item.productId));
@@ -99,7 +104,7 @@ const PurchaseReturnModal = ({
       setReturnNotes('');
       setCalculated(true);
     }
-  }, [isOpen, invoice, products]);
+  }, [isOpen, invoice, products, suppliers]);
 
   // التحقق من الصلاحيات
   const canReturnInvoice = hasPermission('manage_purchase_returns');
@@ -132,7 +137,9 @@ const PurchaseReturnModal = ({
         invoiceId: invoice.id,
         type: 'purchase',
         supplierId: invoice.supplierId,
-        supplierName: invoice.supplierName,
+        supplierName: supplierInfo?.name || invoice.supplierName || 'مورد غير محدد',
+        supplierAddress: supplierInfo?.address || '',
+        supplierPhone: supplierInfo?.phone || '',
         items: itemsToReturn,
         returnReason: returnReason.trim(),
         returnNotes: returnNotes.trim(),
@@ -227,7 +234,9 @@ const PurchaseReturnModal = ({
             </div>
             <div>
               <span className="font-medium text-orange-700">المورد:</span>
-              <div className="text-orange-900">{invoice.supplierName || 'غير محدد'}</div>
+              <div className="text-orange-900">
+                {supplierInfo?.name || invoice.supplierName || 'غير محدد'}
+              </div>
             </div>
             <div>
               <span className="font-medium text-orange-700">التاريخ:</span>

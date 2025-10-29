@@ -60,11 +60,11 @@ const ManagePurchaseInvoices = () => {
   };
 
   // فحص الصلاحيات
-  const canViewInvoice = hasPermission('view_purchase_invoices');
-  const canReturnInvoice = hasPermission('return_purchase');
-  const canPrintInvoice = hasPermission('print_invoices');
-  const canDeleteInvoice = hasPermission('delete_purchase_invoice');
-  const canManagePurchase = hasPermission('manage_purchases');
+  const canViewInvoice = hasPermission('transactions.view');
+  const canReturnInvoice = hasPermission('manage_purchase_returns');
+  const canPrintInvoice = hasPermission('reports.export');
+  const canDeleteInvoice = hasPermission('transactions.delete');
+  const canManagePurchase = hasPermission('transactions.edit');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -91,8 +91,20 @@ const ManagePurchaseInvoices = () => {
     
     console.log('🔄 فتح نافذة إرجاع الفاتورة:', invoice.id);
     
+    // جلب معلومات المورد من قائمة الموردين
+    const supplier = suppliers.find(s => s.id === parseInt(invoice.supplierId));
+    
+    // إنشاء نسخة محدثة من الفاتورة مع معلومات المورد
+    const invoiceWithSupplier = {
+      ...invoice,
+      supplierName: supplier?.name || 'غير محدد',
+      supplierAddress: supplier?.address || '',
+      supplierPhone: supplier?.phone || '',
+      supplierEmail: supplier?.email || ''
+    };
+    
     // فتح النافذة المنبثقة للإرجاع
-    setInvoiceForReturn(invoice);
+    setInvoiceForReturn(invoiceWithSupplier);
     setShowReturnModal(true);
   };
 
