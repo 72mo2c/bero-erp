@@ -222,6 +222,7 @@ export const DataProvider = ({ children, orgId }) => {
           errors.push(`لا يمكن أن تكون الكمية سالبة في العنصر ${index + 1}`);
         }
         
+        // يجب أن تكون هناك كمية أساسية أو فرعية على الأقل
         if (mainQty === 0 && subQty === 0) {
           errors.push(`يجب تحديد كمية في العنصر ${index + 1}`);
         }
@@ -543,20 +544,28 @@ export const DataProvider = ({ children, orgId }) => {
       oldInvoice.items.forEach(item => {
         const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
         if (productIndex !== -1) {
-          // حساب الكمية الإجمالية القديمة (الرئيسية + الفرعية)
+          // حساب الكميات بشكل منفصل (الرئيسية والفرعية) - مثل الإضافة
           const oldMainQty = parseInt(item.quantity) || 0;
           const oldSubQty = parseInt(item.subQuantity) || 0;
-          const oldTotalQty = oldMainQty + oldSubQty;
           
-          // إعادة الكمية للمخزون
-          const newQuantity = (updatedProducts[productIndex].mainQuantity || 0) - oldTotalQty;
+          // خصم الكميات بشكل منفصل من المخزون
+          const newMainQuantity = (updatedProducts[productIndex].mainQuantity || 0) - oldMainQty;
+          const newSubQuantity = (updatedProducts[productIndex].subQuantity || 0) - oldSubQty;
           
           // التحقق من عدم حدوث كميات سالبة
-          if (newQuantity < 0) {
-            throw new Error(`لا يمكن تحديث الفاتورة: الكمية المتوفرة غير كافية للمنتج ${updatedProducts[productIndex].name}`);
+          if (newMainQuantity < 0) {
+            throw new Error(`لا يمكن تحديث الفاتورة: الكمية الأساسية المتوفرة غير كافية للمنتج ${updatedProducts[productIndex].name}`);
+          }
+          
+          if (newSubQuantity < 0 && oldSubQty > 0) {
+            throw new Error(`لا يمكن تحديث الفاتورة: الكمية الفرعية المتوفرة غير كافية للمنتج ${updatedProducts[productIndex].name}`);
           }
           
           updatedProducts[productIndex] = {
+            ...updatedProducts[productIndex],
+            mainQuantity: newMainQuantity,
+            subQuantity: newSubQuantity
+          };
             ...updatedProducts[productIndex],
             mainQuantity: newQuantity
           };
@@ -768,6 +777,38 @@ export const DataProvider = ({ children, orgId }) => {
       setPurchaseReturns(updatedReturns);
       saveData('bero_purchase_returns', updatedReturns);
       
+      // خصم الكميات من المخزون فوراً (بدلاً من انتظار الاعتماد)
+      const updatedProducts = [...products];
+      enrichedItems.forEach(item => {
+        const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
+        if (productIndex !== -1) {
+          const currentProduct = updatedProducts[productIndex];
+          const mainQtyToDeduct = item.quantity || 0;
+          const subQtyToDeduct = item.subQuantity || 0;
+          
+          const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQtyToDeduct;
+          const newSubQuantity = (currentProduct.subQuantity || 0) - subQtyToDeduct;
+          
+          // التحقق من توفر الكميات
+          if (newMainQuantity < 0) {
+            throw new Error(`الكمية الأساسية المتوفرة في المخزون غير كافية للمنتج: ${currentProduct.name}`);
+          }
+          
+          if (newSubQuantity < 0 && subQtyToDeduct > 0) {
+            throw new Error(`الكمية الفرعية المتوفرة في المخزون غير كافية للمنتج: ${currentProduct.name}`);
+          }
+          
+          updatedProducts[productIndex] = {
+            ...currentProduct,
+            mainQuantity: newMainQuantity,
+            subQuantity: newSubQuantity
+          };
+        }
+      });
+      
+      setProducts(updatedProducts);
+      saveData('bero_products', updatedProducts);
+      
       // تسجيل العملية في سجل التتبع
       addAuditLog(
         'CREATE_PURCHASE_RETURN',
@@ -873,37 +914,41 @@ export const DataProvider = ({ children, orgId }) => {
         throw new Error('ليس لديك صلاحية اعتماد المرتجعات');
       }
       
-      // تحديث المخزون (خصم الكميات)
-      const updatedProducts = [...products];
-      
-      returnRecord.items.forEach(item => {
-        const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
-        if (productIndex !== -1) {
-          const currentProduct = updatedProducts[productIndex];
-          const mainQtyToDeduct = item.quantity || 0;
-          const subQtyToDeduct = item.subQuantity || 0;
-          
-          const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQtyToDeduct;
-          const newSubQuantity = (currentProduct.subQuantity || 0) - subQtyToDeduct;
-          
-          if (newMainQuantity < 0) {
-            throw new Error(`الكمية الأساسية المتوفرة في المخزون غير كافية للمنتج`);
+      // تحديث المخزون (خصم الكميات) - فقط إذا لم يتم خصمها مسبقاً
+      // المرتجعات الجديدة يتم خصمها فوراً، لذا لا نحتاج لخصمها مرة أخرى
+      if (returnRecord.status === RETURN_STATUSES.PENDING) {
+        // فقط المرتجعات القديمة (التي لم يتم خصمها عند الإنشاء) تحتاج خصم
+        const updatedProducts = [...products];
+        
+        returnRecord.items.forEach(item => {
+          const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
+          if (productIndex !== -1) {
+            const currentProduct = updatedProducts[productIndex];
+            const mainQtyToDeduct = item.quantity || 0;
+            const subQtyToDeduct = item.subQuantity || 0;
+            
+            const newMainQuantity = (currentProduct.mainQuantity || 0) - mainQtyToDeduct;
+            const newSubQuantity = (currentProduct.subQuantity || 0) - subQtyToDeduct;
+            
+            if (newMainQuantity < 0) {
+              throw new Error(`الكمية الأساسية المتوفرة في المخزون غير كافية للمنتج`);
+            }
+            
+            if (newSubQuantity < 0 && subQtyToDeduct > 0) {
+              throw new Error(`الكمية الفرعية المتوفرة في المخزون غير كافية للمنتج`);
+            }
+            
+            updatedProducts[productIndex] = {
+              ...currentProduct,
+              mainQuantity: newMainQuantity,
+              subQuantity: newSubQuantity
+            };
           }
-          
-          if (newSubQuantity < 0 && subQtyToDeduct > 0) {
-            throw new Error(`الكمية الفرعية المتوفرة في المخزون غير كافية للمنتج`);
-          }
-          
-          updatedProducts[productIndex] = {
-            ...currentProduct,
-            mainQuantity: newMainQuantity,
-            subQuantity: newSubQuantity
-          };
-        }
-      });
-      
-      setProducts(updatedProducts);
-      saveData('bero_products', updatedProducts);
+        });
+        
+        setProducts(updatedProducts);
+        saveData('bero_products', updatedProducts);
+      }
       
       // إنشاء إيصال تلقائي للخزينة
       const receipt = createAutomaticReceipt(returnRecord, RETURN_TYPES.PURCHASE, currentUser?.id);

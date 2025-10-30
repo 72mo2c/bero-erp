@@ -54,8 +54,10 @@ const PurchaseReturnModal = ({
   // حساب الإجمالي
   const calculateTotal = () => {
     const total = returnItems.reduce((sum, item) => {
-      const itemTotal = (item.returnQuantity || 0) * (item.unitPrice || 0);
-      return sum + itemTotal;
+      // حساب النسبة المرتجعة وتطبيقها على السعر الإجمالي الأصلي
+      const returnRatio = item.returnQuantity / item.purchasedQuantity;
+      const itemTotal = item.totalPrice * returnRatio;
+      return sum + (itemTotal || 0);
     }, 0);
     
     setTotalReturnAmount(total);
@@ -91,10 +93,17 @@ const PurchaseReturnModal = ({
         return {
           productId: item.productId,
           productName: item.productName || product?.name || 'منتج غير معروف',
-          purchasedQuantity: item.quantity || 0,
+          // حفظ البيانات الأصلية للرجوع إليها
+          originalMainQuantity: item.quantity || 0,
+          originalSubQuantity: item.subQuantity || 0,
+          originalMainPrice: item.unitPrice || item.price || 0,
+          originalSubPrice: item.subPrice || 0,
+          // للعرض في الواجهة
+          purchasedQuantity: (item.quantity || 0) + (item.subQuantity || 0),
           returnQuantity: 0,
           unitPrice: item.unitPrice || item.price || 0,
-          totalPrice: (item.quantity || 0) * (item.unitPrice || item.price || 0)
+          totalPrice: ((item.quantity || 0) * (item.unitPrice || item.price || 0)) + 
+                     ((item.subQuantity || 0) * (item.subPrice || 0))
         };
       }) || [];
       
@@ -119,11 +128,19 @@ const PurchaseReturnModal = ({
     // التحقق من اختيار منتجات للإرجاع
     const itemsToReturn = returnItems
       .filter(item => item.returnQuantity > 0)
-      .map(item => ({
-        ...item,
-        quantity: item.returnQuantity, // تحويل returnQuantity إلى quantity للتوافق مع validateReturnData
-        productId: item.productId
-      }));
+      .map(item => {
+        // حساب الكميات بناءً على النسبة المرتجعة
+        const returnRatio = item.returnQuantity / item.purchasedQuantity;
+        const mainQtyToReturn = Math.round(item.originalMainQuantity * returnRatio);
+        const subQtyToReturn = Math.round(item.originalSubQuantity * returnRatio);
+        
+        return {
+          ...item,
+          quantity: mainQtyToReturn,        // الكمية الأساسية المرتجعة
+          subQuantity: subQtyToReturn,      // الكمية الفرعية المرتجعة  
+          productId: item.productId
+        };
+      });
     if (itemsToReturn.length === 0) {
       showError('يرجى اختيار منتجات للإرجاع');
       return;
