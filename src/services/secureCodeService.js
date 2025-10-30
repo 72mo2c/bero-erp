@@ -12,6 +12,11 @@
  * - تحليل ذكي للسلوك
  */
 
+// استيراد الأنظمة الأمنية المتقدمة
+const security = require('../utils/security.js');
+const auditLogger = require('../utils/auditLogger.js');
+const rateLimiter = require('../utils/rateLimiter.js');
+
 // استبدال Node.js crypto بـ Web Crypto API المتوافق مع المتصفح
 const crypto = {
     randomBytes: (length) => {
@@ -75,11 +80,6 @@ const crypto = {
 // إزالة استخدامات fs و path غير المتوافقة مع المتصفح
 const fs = null; // غير متوفر في المتصفح
 const path = null; // غير متوفر في المتصفح
-
-// استيراد الأنظمة الأمنية المتقدمة
-const security = require('../utils/security');
-const auditLogger = require('../utils/auditLogger');
-const rateLimiter = require('../utils/rateLimiter');
 
 class SecureCodeService {
     constructor() {

@@ -3,7 +3,7 @@
 // ======================================
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { verifyPassword } from '../utils/security';
+import { verifyPassword, hashPassword } from '../utils/security';
 
 const AuthContext = createContext();
 
@@ -64,7 +64,6 @@ export const AuthProvider = ({ children, orgId }) => {
       
       // إنشاء مستخدم افتراضي إذا لم يكن هناك مستخدمون
       if (users.length === 0) {
-        const { hashPassword } = require('../utils/security');
         const defaultUser = {
           id: 1,
           username: 'admin',
@@ -94,7 +93,6 @@ export const AuthProvider = ({ children, orgId }) => {
       }
 
       // التحقق من كلمة المرور (يدعم كلمات المرور القديمة غير المشفرة)
-      const { hashPassword } = require('../utils/security');
       let isPasswordValid = false;
       
       // محاولة 1: التحقق من كلمة مرور مشفرة

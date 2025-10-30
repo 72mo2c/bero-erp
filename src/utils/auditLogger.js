@@ -507,7 +507,6 @@ class AuditLogger {
      */
     encryptLogLine(logLine) {
         try {
-            const crypto = require('./browserCrypto');
             const key = crypto.randomBytes(32);
             const iv = crypto.randomBytes(16);
             
