@@ -1227,13 +1227,25 @@ export const DataProvider = ({ children, orgId }) => {
           throw new Error(`المنتج غير موجود`);
         }
         
-        const requestedQty = parseInt(item.mainQuantity || 0) + parseInt(item.subQuantity || 0);
-        const availableQty = product.mainQuantity || 0;
+        // التحقق من توفر الكميات بشكل منفصل
+        const mainQtyRequested = parseInt(item.mainQuantity || 0);
+        const subQtyRequested = parseInt(item.subQuantity || 0);
+        const availableMainQty = product.mainQuantity || 0;
+        const availableSubQty = product.subQuantity || 0;
         
-        if (requestedQty > availableQty) {
+        // التحقق من الكمية الأساسية
+        if (mainQtyRequested > availableMainQty) {
           throw new Error(
-            `الكمية المتوفرة غير كافية للمنتج "${product.name}".\n` +
-            `المتوفر: ${availableQty}، المطلوب: ${requestedQty}`
+            `الكمية الأساسية المتوفرة غير كافية للمنتج "${product.name}".\n` +
+            `المتوفر: ${availableMainQty}، المطلوب: ${mainQtyRequested}`
+          );
+        }
+        
+        // التحقق من الكمية الفرعية
+        if (subQtyRequested > availableSubQty) {
+          throw new Error(
+            `الكمية الفرعية المتوفرة غير كافية للمنتج "${product.name}".\n` +
+            `المتوفر: ${availableSubQty}، المطلوب: ${subQtyRequested}`
           );
         }
       }
@@ -1273,18 +1285,24 @@ export const DataProvider = ({ children, orgId }) => {
         if (productIndex !== -1) {
           const mainQty = parseInt(item.mainQuantity || 0);
           const subQty = parseInt(item.subQuantity || 0);
-          const newQuantity = (updatedProducts[productIndex].mainQuantity || 0) - mainQty - subQty;
           
-          // تأكيد نهائي لمنع الكميات السالبة
-          if (newQuantity < 0) {
-            throw new Error(
-              `خطأ: الكمية أصبحت سالبة للمنتج ${updatedProducts[productIndex].name}`
-            );
+          // خصم الكميات بشكل منفصل من المخزون
+          const newMainQuantity = (updatedProducts[productIndex].mainQuantity || 0) - mainQty;
+          const newSubQuantity = (updatedProducts[productIndex].subQuantity || 0) - subQty;
+          
+          // التحقق من عدم حدوث كميات سالبة
+          if (newMainQuantity < 0) {
+            throw new Error(`خطأ: الكمية الأساسية أصبحت سالبة للمنتج ${updatedProducts[productIndex].name}`);
+          }
+          
+          if (newSubQuantity < 0 && subQty > 0) {
+            throw new Error(`خطأ: الكمية الفرعية أصبحت سالبة للمنتج ${updatedProducts[productIndex].name}`);
           }
           
           updatedProducts[productIndex] = {
             ...updatedProducts[productIndex],
-            mainQuantity: newQuantity
+            mainQuantity: newMainQuantity,
+            subQuantity: newSubQuantity
           };
         }
       });
@@ -1316,9 +1334,13 @@ export const DataProvider = ({ children, orgId }) => {
       invoice.items.forEach(item => {
         const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
         if (productIndex !== -1) {
+          const mainQtyToAdd = parseInt(item.mainQuantity || 0);
+          const subQtyToAdd = parseInt(item.subQuantity || 0);
+          
           updatedProducts[productIndex] = {
             ...updatedProducts[productIndex],
-            mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) + parseInt(item.quantity)
+            mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) + mainQtyToAdd,
+            subQuantity: (updatedProducts[productIndex].subQuantity || 0) + subQtyToAdd
           };
         }
       });
@@ -1420,12 +1442,12 @@ export const DataProvider = ({ children, orgId }) => {
         reason: reason.trim(),
         notes: notes?.trim() || '',
         totalAmount,
-        status: RETURN_STATUSES.DRAFT, // الحالة الافتراضية: مسودة
+        status: RETURN_STATUSES.PENDING, // تغيير لتحديث المخزون فوراً
         workflowHistory: [{
           id: Date.now(),
           action: 'created',
           fromStatus: null,
-          toStatus: RETURN_STATUSES.DRAFT,
+          toStatus: RETURN_STATUSES.PENDING,
           userId: currentUser?.id || 'anonymous',
           timestamp: new Date().toISOString(),
           notes: 'تم إنشاء المرتجع'
@@ -1453,6 +1475,27 @@ export const DataProvider = ({ children, orgId }) => {
       const updatedReturns = [newReturn, ...salesReturns];
       setSalesReturns(updatedReturns);
       saveData('bero_sales_returns', updatedReturns);
+      
+      // تحديث المخزون فوراً (إضافة الكميات المرتجعة)
+      const updatedProducts = [...products];
+      
+      newReturn.items.forEach(item => {
+        const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
+        if (productIndex !== -1) {
+          const currentProduct = updatedProducts[productIndex];
+          const mainQtyToAdd = item.quantity || 0;
+          const subQtyToAdd = item.subQuantity || 0;
+          
+          updatedProducts[productIndex] = {
+            ...currentProduct,
+            mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
+            subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
+          };
+        }
+      });
+      
+      setProducts(updatedProducts);
+      saveData('bero_products', updatedProducts);
       
       // تسجيل العملية في سجل التتبع
       addAuditLog(
@@ -1558,27 +1601,6 @@ export const DataProvider = ({ children, orgId }) => {
       if (!checkPermission('approve', 'returns')) {
         throw new Error('ليس لديك صلاحية اعتماد المرتجعات');
       }
-      
-      // تحديث المخزون (إضافة الكميات)
-      const updatedProducts = [...products];
-      
-      returnRecord.items.forEach(item => {
-        const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
-        if (productIndex !== -1) {
-          const currentProduct = updatedProducts[productIndex];
-          const mainQtyToAdd = item.quantity || 0;
-          const subQtyToAdd = item.subQuantity || 0;
-          
-          updatedProducts[productIndex] = {
-            ...currentProduct,
-            mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToAdd,
-            subQuantity: (currentProduct.subQuantity || 0) + subQtyToAdd
-          };
-        }
-      });
-      
-      setProducts(updatedProducts);
-      saveData('bero_products', updatedProducts);
       
       // إنشاء إيصال تلقائي للخزينة
       const receipt = createAutomaticReceipt(returnRecord, RETURN_TYPES.SALES, currentUser?.id);

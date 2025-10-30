@@ -83,13 +83,21 @@ const SalesReturnModal = ({
       // تحويل عناصر الفاتورة إلى عناصر إرجاع
       const items = invoice.items?.map(item => {
         const product = products.find(p => p.id === parseInt(item.productId));
+        const mainQuantity = parseInt(item.mainQuantity || 0);
+        const subQuantity = parseInt(item.subQuantity || 0);
+        const totalSoldQuantity = mainQuantity + subQuantity;
+        
         return {
           productId: item.productId,
           productName: item.productName || product?.name || 'منتج غير معروف',
-          soldQuantity: item.quantity || 0,
+          soldQuantity: totalSoldQuantity,
           returnQuantity: 0,
           unitPrice: item.unitPrice || item.price || 0,
-          totalPrice: (item.quantity || 0) * (item.unitPrice || item.price || 0)
+          totalPrice: totalSoldQuantity * (item.unitPrice || item.price || 0),
+          // حفظ الكميات الأصلية لحساب النسب
+          originalMainQuantity: mainQuantity,
+          originalSubQuantity: subQuantity,
+          purchasedQuantity: totalSoldQuantity
         };
       }) || [];
       
@@ -126,22 +134,31 @@ const SalesReturnModal = ({
     setLoading(true);
 
     try {
-      // إنشاء سجل الإرجاع
+      // إنشاء سجل الإرجاع مع حساب الكميات المنفصلة
+      const itemsToReturn = returnItems
+        .filter(item => item.returnQuantity > 0)
+        .map(item => {
+          // حساب النسبة المرتجعة
+          const returnRatio = item.returnQuantity / item.purchasedQuantity;
+          const mainQtyToReturn = Math.round(item.originalMainQuantity * returnRatio);
+          const subQtyToReturn = Math.round(item.originalSubQuantity * returnRatio);
+          
+          return {
+            productId: parseInt(item.productId),
+            productName: item.productName,
+            quantity: mainQtyToReturn, // الكمية الأساسية المرتجعة
+            subQuantity: subQtyToReturn, // الكمية الفرعية المرتجعة
+            unitPrice: item.unitPrice,
+            totalAmount: item.returnQuantity * item.unitPrice,
+            returnQuantity: item.returnQuantity // للعرض فقط
+          };
+        });
+
       const returnRecord = {
-        id: `return_${Date.now()}`,
         invoiceId: invoice.id,
-        type: 'sales',
-        customerId: invoice.customerId,
-        customerName: invoice.customerName,
         items: itemsToReturn,
-        returnReason: returnReason.trim(),
-        returnNotes: returnNotes.trim(),
-        returnAmount: totalReturnAmount,
-        originalAmount: invoice.total || 0,
-        returnDate: new Date().toISOString().split('T')[0],
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-        userId: hasPermission('admin_user_id') // يمكن تحسين هذا لاحقاً
+        reason: returnReason.trim(),
+        notes: returnNotes.trim()
       };
 
       // حفظ الإرجاع
