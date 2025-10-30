@@ -566,9 +566,6 @@ export const DataProvider = ({ children, orgId }) => {
             mainQuantity: newMainQuantity,
             subQuantity: newSubQuantity
           };
-            ...updatedProducts[productIndex],
-            mainQuantity: newQuantity
-          };
         }
       });
       
@@ -1950,7 +1947,7 @@ export const DataProvider = ({ children, orgId }) => {
         throw new Error('يجب إدخال سبب الإلغاء (على الأقل 10 أحرف)');
       }
       
-      let returnRecord, updatedReturns, setReturnsFunc, saveKey;
+      let returnRecord, setReturnsFunc, saveKey;
       
       if (type === RETURN_TYPES.PURCHASE) {
         returnRecord = purchaseReturns.find(ret => ret.id === returnId);
@@ -2064,7 +2061,7 @@ export const DataProvider = ({ children, orgId }) => {
         }
       };
       
-      const newReturns = returnRecord ? [cancelledReturn, ...purchaseReturns.filter(ret => ret.id !== returnId)] : purchaseReturns;
+      let newReturns = returnRecord ? [cancelledReturn, ...purchaseReturns.filter(ret => ret.id !== returnId)] : purchaseReturns;
       if (type === RETURN_TYPES.SALES) {
         newReturns = [cancelledReturn, ...salesReturns.filter(ret => ret.id !== returnId)];
       }
