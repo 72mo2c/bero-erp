@@ -83,8 +83,18 @@ const ManageSalesInvoices = () => {
     
     console.log('🔄 فتح نافذة إرجاع الفاتورة:', invoice.id);
     
+    // إضافة معلومات العميل إلى الفاتورة
+    const customer = customers.find(c => c.id === parseInt(invoice.customerId));
+    const invoiceWithCustomer = {
+      ...invoice,
+      customerName: customer?.name || 'غير محدد',
+      customerAddress: customer?.address || '',
+      customerPhone: customer?.phone || '',
+      customerEmail: customer?.email || ''
+    };
+    
     // فتح النافذة المنبثقة للإرجاع
-    setInvoiceForReturn(invoice);
+    setInvoiceForReturn(invoiceWithCustomer);
     setShowReturnModal(true);
   };
 
