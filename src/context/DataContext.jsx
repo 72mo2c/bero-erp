@@ -723,8 +723,16 @@ export const DataProvider = ({ children, orgId }) => {
         const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
         const availableQty = originalQty - totalReturnedQty;
         
+        // تشخيص مفصل للكميات (مرتجعات مشتريات)
+        console.log('=== تشخيص الكميات - مرتجعات مشتريات ===');
+        console.log(`المنتج: ${originalItem.productName}`);
+        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}, إجمالي=${originalQty}`);
+        console.log(`المرتجعات السابقة: ${totalReturnedQty} (من ${previousReturns.length} مرتجع)`);
+        console.log(`الكمية المتاحة للإرجاع: ${availableQty}`);
+        console.log(`الكمية المطلوب إرجاعها: أساسية=${item.quantity || 0}, فرعية=${item.subQuantity || 0}, إجمالي=${returnQty}`);
+        
         if (returnQty > availableQty) {
-          throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
+          throw new Error(`الكمية المرتجعة (${returnQty}) تتجاوز الكمية المتاحة (${availableQty}) للمنتج ${originalItem.productName}`);
         }
         
         // حساب المبلغ المرتجع
@@ -1424,8 +1432,16 @@ export const DataProvider = ({ children, orgId }) => {
         const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
         const availableQty = originalQty - totalReturnedQty;
         
+        // تشخيص مفصل للكميات
+        console.log('=== تشخيص الكميات ===');
+        console.log(`المنتج: ${originalItem.productName}`);
+        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}, إجمالي=${originalQty}`);
+        console.log(`المرتجعات السابقة: ${totalReturnedQty} (من ${previousReturns.length} مرتجع)`);
+        console.log(`الكمية المتاحة للإرجاع: ${availableQty}`);
+        console.log(`الكمية المطلوب إرجاعها: أساسية=${item.quantity || 0}, فرعية=${item.subQuantity || 0}, إجمالي=${returnQty}`);
+        
         if (returnQty > availableQty) {
-          throw new Error(`الكمية المرتجعة تتجاوز الكمية المتاحة للمنتج`);
+          throw new Error(`الكمية المرتجعة (${returnQty}) تتجاوز الكمية المتاحة (${availableQty}) للمنتج ${originalItem.productName}`);
         }
         
         // حساب المبلغ المرتجع
