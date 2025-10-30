@@ -1,3 +1,4 @@
+
 /**
  * نظام الأمان والتشفير المتقدم
  * Advanced Security and Encryption System
@@ -769,11 +770,40 @@ const sanitizeInput = (input) => {
   return input.trim().replace(/[<>]/g, '');
 };
 
+// ======================================
+// التصدير الصحيح لجميع الدوال
+// ======================================
+
 module.exports = {
-  ...advancedSecurity,
+  // الكلاس الرئيسي
+  AdvancedSecurity,
+  
+  // المثيل الرئيسي
+  advancedSecurity,
+  
+  // الدوال المساعدة
   hashPassword,
   verifyPassword,
   generateId,
   checkPasswordStrength,
-  sanitizeInput
+  sanitizeInput,
+  
+  // تصدير دوال من المثيل الرئيسي للاستخدام المباشر
+  encrypt: (text, keyId) => advancedSecurity.encrypt(text, keyId),
+  decrypt: (encryptedData, keyId) => advancedSecurity.decrypt(encryptedData, keyId),
+  createHash: (data, salt) => advancedSecurity.createHash(data, salt),
+  verifyHash: (data, hashInfo) => advancedSecurity.verifyHash(data, hashInfo),
+  createHMAC: (data, keyId) => advancedSecurity.createHMAC(data, keyId),
+  verifyHMAC: (data, hmac, keyId) => advancedSecurity.verifyHMAC(data, hmac, keyId),
+  createSecureIdentifier: (data, options) => advancedSecurity.createSecureIdentifier(data, options),
+  verifySecureIdentifier: (identifier) => advancedSecurity.verifySecureIdentifier(identifier),
+  detectBruteForce: (ipAddress, userAgent) => advancedSecurity.detectBruteForce(ipAddress, userAgent),
+  isIPBlocked: (ipAddress) => advancedSecurity.isIPBlocked(ipAddress),
+  unblockIP: (ipAddress) => advancedSecurity.unblockIP(ipAddress),
+  detectSuspiciousPattern: (data) => advancedSecurity.detectSuspiciousPattern(data),
+  createSecurityAlert: (type, data) => advancedSecurity.createSecurityAlert(type, data),
+  getSecurityAlerts: (resolved) => advancedSecurity.getSecurityAlerts(resolved),
+  createSecureSession: (data, expiryHours) => advancedSecurity.createSecureSession(data, expiryHours),
+  verifySecureSession: (secureSession) => advancedSecurity.verifySecureSession(secureSession),
+  getSecurityStats: () => advancedSecurity.getSecurityStats()
 };
