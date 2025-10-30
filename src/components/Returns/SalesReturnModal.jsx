@@ -58,8 +58,8 @@ const SalesReturnModal = ({
       item.productId === productId 
         ? { 
             ...item, 
-            returnMainQuantity: Math.max(0, Math.min(newQuantity, item.soldMainQuantity)),
-            totalReturnQuantity: Math.max(0, Math.min(newQuantity, item.soldMainQuantity)) + (item.returnSubQuantity || 0)
+            returnMainQuantity: Math.max(0, Math.min(newQuantity, item.soldMainQuantity))
+            // إزالة totalReturnQuantity لأن الكميات الأساسية والفرعية منفصلة
           }
         : item
     ));
@@ -71,13 +71,21 @@ const SalesReturnModal = ({
       item.productId === productId 
         ? { 
             ...item, 
-            returnSubQuantity: Math.max(0, Math.min(newQuantity, item.soldSubQuantity)),
-            totalReturnQuantity: (item.returnMainQuantity || 0) + Math.max(0, Math.min(newQuantity, item.soldSubQuantity))
+            returnSubQuantity: Math.max(0, Math.min(newQuantity, item.soldSubQuantity))
+            // إزالة totalReturnQuantity لأن الكميات الأساسية والفرعية منفصلة
           }
         : item
     ));
   };
 
+  // حساب المبلغ الإجمالي للإرجاع
+  const calculateReturnAmount = () => {
+    return returnItems.reduce((total, item) => {
+      const mainAmount = (item.returnMainQuantity || 0) * (item.mainUnitPrice || 0);
+      const subAmount = (item.returnSubQuantity || 0) * (item.subUnitPrice || 0);
+      return total + mainAmount + subAmount;
+    }, 0);
+  };
 
 
   // تهيئة البيانات عند فتح النافذة
@@ -92,17 +100,19 @@ const SalesReturnModal = ({
         return {
           productId: item.productId,
           productName: item.productName || product?.name || 'منتج غير معروف',
-          // بيانات الكميات الأصلية المباعة
+          // بيانات الكميات الأصلية المباعة (منفصلة)
           soldMainQuantity: mainQuantity,
           soldSubQuantity: subQuantity,
-          totalSoldQuantity: mainQuantity + subQuantity,
+          // إزالة totalSoldQuantity لأن الكميات منفصلة
           // بيانات الكميات المراد إرجاعها (منفصلة)
           returnMainQuantity: 0,
           returnSubQuantity: 0,
-          totalReturnQuantity: 0,
           // للعرض والحساب
           originalMainQuantity: mainQuantity,
-          originalSubQuantity: subQuantity
+          originalSubQuantity: subQuantity,
+          // بيانات الأسعار للحساب
+          mainUnitPrice: parseFloat(item.mainUnitPrice || 0),
+          subUnitPrice: parseFloat(item.subUnitPrice || 0)
         };
       }) || [];
       
@@ -267,6 +277,7 @@ const SalesReturnModal = ({
                     <th className="border border-gray-300 p-3 text-center">إرجاع أساسي</th>
                     <th className="border border-gray-300 p-3 text-center">الكمية الفرعية المباعة</th>
                     <th className="border border-gray-300 p-3 text-center">إرجاع فرعي</th>
+                    <th className="border border-gray-300 p-3 text-center">مبلغ الإرجاع</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -342,6 +353,14 @@ const SalesReturnModal = ({
                         </div>
                       </td>
 
+                      {/* عرض مبلغ الإرجاع للصف */}
+                      <td className="border border-gray-300 p-3 text-center font-medium text-blue-600">
+                        {formatCurrency(
+                          ((item.returnMainQuantity || 0) * (item.mainUnitPrice || 0)) +
+                          ((item.returnSubQuantity || 0) * (item.subUnitPrice || 0))
+                        )}
+                      </td>
+
                     </tr>
                   ))}
                 </tbody>
@@ -408,6 +427,15 @@ const SalesReturnModal = ({
                 <span className="font-medium text-green-900">
                   {returnItems.reduce((sum, item) => sum + (item.returnSubQuantity || 0), 0)} عبوة
                 </span>
+              </div>
+              {/* إضافة عرض المبلغ الإجمالي للإرجاع */}
+              <div className="border-t border-green-300 pt-2 mt-2">
+                <div className="flex justify-between">
+                  <span className="text-green-700 font-semibold">إجمالي مبلغ الإرجاع:</span>
+                  <span className="font-bold text-green-900 text-lg">
+                    {formatCurrency(calculateReturnAmount())}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
