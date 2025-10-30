@@ -596,21 +596,25 @@ export const DataProvider = ({ children, orgId }) => {
     setPurchaseInvoices(updated);
     saveData('bero_purchase_invoices', updated);
 
-    // إضافة الكميات الجديدة - مع الكمية الفرعية
+    // إضافة الكميات الجديدة - مع معالجة الوحدتين بشكل منفصل
     if (updatedData.items && Array.isArray(updatedData.items)) {
       const updatedProducts = [...products];
       
       updatedData.items.forEach(item => {
         const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
         if (productIndex !== -1) {
-          // حساب الكمية الإجمالية الجديدة (الرئيسية + الفرعية)
+          // حساب الكميات بشكل منفصل (الرئيسية والفرعية)
           const newMainQty = parseInt(item.quantity) || 0;
           const newSubQty = parseInt(item.subQuantity) || 0;
-          const newTotalQty = newMainQty + newSubQty;
+          
+          // إضافة الكميات بشكل منفصل إلى المخزون
+          const currentMainQty = updatedProducts[productIndex].mainQuantity || 0;
+          const currentSubQty = updatedProducts[productIndex].subQuantity || 0;
           
           updatedProducts[productIndex] = {
             ...updatedProducts[productIndex],
-            mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) + newTotalQty
+            mainQuantity: currentMainQty + newMainQty,
+            subQuantity: currentSubQty + newSubQty
           };
         }
       });
@@ -633,29 +637,37 @@ export const DataProvider = ({ children, orgId }) => {
       throw new Error('لا يمكن حذف الفاتورة: توجد مرتجعات مرتبطة بها');
     }
     
-    // إعادة الكميات من المخزون (عكس عملية الشراء) - مع الكمية الفرعية
+    // إعادة الكميات من المخزون (عكس عملية الشراء) - مع معالجة الوحدتين بشكل منفصل
     if (invoice.items && Array.isArray(invoice.items)) {
       const updatedProducts = [...products];
       
       invoice.items.forEach(item => {
         const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
         if (productIndex !== -1) {
-          // حساب الكمية الإجمالية (الرئيسية + الفرعية)
+          // حساب الكميات بشكل منفصل (الرئيسية والفرعية)
           const mainQty = parseInt(item.quantity) || 0;
           const subQty = parseInt(item.subQuantity) || 0;
-          const totalQty = mainQty + subQty;
           
-          // خصم الكمية من المخزون (عكس عملية الشراء)
-          const newQuantity = (updatedProducts[productIndex].mainQuantity || 0) - totalQty;
+          // خصم الكميات بشكل منفصل من المخزون
+          const currentMainQty = updatedProducts[productIndex].mainQuantity || 0;
+          const currentSubQty = updatedProducts[productIndex].subQuantity || 0;
+          
+          const newMainQuantity = currentMainQty - mainQty;
+          const newSubQuantity = currentSubQty - subQty;
           
           // التحقق من عدم حدوث كميات سالبة
-          if (newQuantity < 0) {
-            throw new Error(`لا يمكن حذف الفاتورة: سيؤدي ذلك إلى كمية سالبة للمنتج ${updatedProducts[productIndex].name}`);
+          if (newMainQuantity < 0) {
+            throw new Error(`لا يمكن حذف الفاتورة: سيؤدي ذلك إلى كمية أساسية سالبة للمنتج ${updatedProducts[productIndex].name}`);
+          }
+          
+          if (newSubQuantity < 0 && subQty > 0) {
+            throw new Error(`لا يمكن حذف الفاتورة: سيؤدي ذلك إلى كمية فرعية سالبة للمنتج ${updatedProducts[productIndex].name}`);
           }
           
           updatedProducts[productIndex] = {
             ...updatedProducts[productIndex],
-            mainQuantity: newQuantity
+            mainQuantity: newMainQuantity,
+            subQuantity: newSubQuantity
           };
         }
       });
@@ -755,20 +767,20 @@ export const DataProvider = ({ children, orgId }) => {
           throw new Error(`الكمية الفرعية المرتجعة (${returnSubQty}) تتجاوز الكمية المتاحة (${availableSubQty}) للمنتج ${originalItem.productName}`);
         }
         
-        // حساب المبلغ المرتجع
-        const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
-                          (item.subQuantity || 0) * (originalItem.subPrice || 0);
-        totalAmount += itemAmount;
+        // حساب المبلغ المرتجع - تم تعطيله للتركيز على الكميات فقط
+        // const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
+        //                   (item.subQuantity || 0) * (originalItem.subPrice || 0);
+        // totalAmount += itemAmount;
         
-        // إثراء بيانات العنصر
+        // إثراء بيانات العنصر - بدون مبلغ
         const product = products.find(p => p.id === parseInt(item.productId));
         enrichedItems.push({
           ...item,
           productId: parseInt(item.productId),
-          productName: product?.name || originalItem.productName || 'غير محدد',
-          originalPrice: originalItem.price,
-          originalSubPrice: originalItem.subPrice,
-          amount: itemAmount
+          productName: product?.name || originalItem.productName || 'غير محدد'
+          // originalPrice: originalItem.price,
+          // originalSubPrice: originalItem.subPrice,
+          // amount: itemAmount
         });
       });
       
@@ -783,7 +795,7 @@ export const DataProvider = ({ children, orgId }) => {
         items: enrichedItems,
         reason: reason.trim(),
         notes: notes?.trim() || '',
-        totalAmount,
+        totalAmount: 0, // تم تعطيل حسابات المبلغ للتركيز على الكميات
         status: RETURN_STATUSES.DRAFT, // الحالة الافتراضية: مسودة
         workflowHistory: [{
           id: Date.now(),
@@ -796,7 +808,7 @@ export const DataProvider = ({ children, orgId }) => {
         }],
         treasuryEffect: {
           type: 'add', // إضافة للخزينة عند الاعتماد
-          amount: totalAmount
+          amount: 0 // تم تعطيل المبلغ
         },
         inventoryEffect: {
           type: 'deduct', // خصم من المخزون عند الاعتماد
@@ -858,7 +870,7 @@ export const DataProvider = ({ children, orgId }) => {
         currentUser?.id,
         {
           invoiceId,
-          totalAmount,
+          totalAmount: 0, // تم تعطيل حسابات المبلغ للتركيز على الكميات
           status: newReturn.status,
           itemsCount: enrichedItems.length
         }
@@ -1089,6 +1101,40 @@ export const DataProvider = ({ children, orgId }) => {
       if (!reason || reason.trim().length < 10) {
         throw new Error('يجب إدخال سبب الرفض (على الأقل 10 أحرف)');
       }
+      
+      // إرجاع الكميات المخصومة من المخزون (rollback)
+      const updatedProducts = [...products];
+      returnRecord.items.forEach(item => {
+        const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
+        if (productIndex !== -1) {
+          const currentProduct = updatedProducts[productIndex];
+          const mainQtyToRestore = item.quantity || 0;
+          const subQtyToRestore = item.subQuantity || 0;
+          
+          updatedProducts[productIndex] = {
+            ...currentProduct,
+            mainQuantity: (currentProduct.mainQuantity || 0) + mainQtyToRestore,
+            subQuantity: (currentProduct.subQuantity || 0) + subQtyToRestore
+          };
+        }
+      });
+      
+      setProducts(updatedProducts);
+      saveData('bero_products', updatedProducts);
+      
+      // تسجيل عملية إرجاع المخزون في سجل التتبع
+      addAuditLog(
+        'ROLLBACK_INVENTORY_ON_REJECT',
+        'inventory',
+        returnId,
+        currentUser?.id,
+        { 
+          items: returnRecord.items, 
+          action: 'restore',
+          returnId: returnId,
+          returnType: 'purchase_return'
+        }
+      );
       
       const updatedReturns = purchaseReturns.map(ret => 
         ret.id === returnId 
@@ -1484,20 +1530,20 @@ export const DataProvider = ({ children, orgId }) => {
           throw new Error(`الكمية الفرعية المرتجعة (${returnSubQty}) تتجاوز الكمية المتاحة (${availableSubQty}) للمنتج ${originalItem.productName}`);
         }
         
-        // حساب المبلغ المرتجع
-        const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
-                          (item.subQuantity || 0) * (originalItem.subPrice || 0);
-        totalAmount += itemAmount;
+        // حساب المبلغ المرتجع - تم تعطيله للتركيز على الكميات فقط
+        // const itemAmount = (item.quantity || 0) * (originalItem.price || 0) +
+        //                   (item.subQuantity || 0) * (originalItem.subPrice || 0);
+        // totalAmount += itemAmount;
         
-        // إثراء بيانات العنصر
+        // إثراء بيانات العنصر - بدون مبلغ
         const product = products.find(p => p.id === parseInt(item.productId));
         enrichedItems.push({
           ...item,
           productId: parseInt(item.productId),
-          productName: product?.name || originalItem.productName || 'غير محدد',
-          originalPrice: originalItem.price,
-          originalSubPrice: originalItem.subPrice,
-          amount: itemAmount
+          productName: product?.name || originalItem.productName || 'غير محدد'
+          // originalPrice: originalItem.price,
+          // originalSubPrice: originalItem.subPrice,
+          // amount: itemAmount
         });
       });
       
@@ -1512,7 +1558,7 @@ export const DataProvider = ({ children, orgId }) => {
         items: enrichedItems,
         reason: reason.trim(),
         notes: notes?.trim() || '',
-        totalAmount,
+        totalAmount: 0, // تم تعطيل حسابات المبلغ للتركيز على الكميات
         status: RETURN_STATUSES.PENDING, // تغيير لتحديث المخزون فوراً
         workflowHistory: [{
           id: Date.now(),
@@ -1525,7 +1571,7 @@ export const DataProvider = ({ children, orgId }) => {
         }],
         treasuryEffect: {
           type: 'deduct', // خصم من الخزينة عند الاعتماد
-          amount: totalAmount
+          amount: 0 // تم تعطيل المبلغ
         },
         inventoryEffect: {
           type: 'add', // إضافة للمخزون عند الاعتماد
@@ -1576,7 +1622,7 @@ export const DataProvider = ({ children, orgId }) => {
         currentUser?.id,
         {
           invoiceId,
-          totalAmount,
+          totalAmount: 0, // تم تعطيل حسابات المبلغ للتركيز على الكميات
           status: newReturn.status,
           itemsCount: enrichedItems.length
         }

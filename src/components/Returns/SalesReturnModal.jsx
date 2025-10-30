@@ -28,7 +28,7 @@ const SalesReturnModal = ({
   
   const { showSuccess, showError } = useNotification();
   const { hasPermission } = useAuth();
-  const { settings } = useSystemSettings();
+
 
   const [returnItems, setReturnItems] = useState([]);
 
@@ -36,21 +36,6 @@ const SalesReturnModal = ({
   const [returnNotes, setReturnNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [calculated, setCalculated] = useState(false);
-
-  // تنسيق العملة
-  const formatCurrency = (amount) => {
-    const currency = settings?.currency || 'EGP';
-    const formatted = new Intl.NumberFormat('ar-EG', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount || 0);
-    
-    return formatted;
-  };
-
-
 
   // تحديث الكمية الأساسية المراد إرجاعها
   const updateReturnMainQuantity = (productId, newQuantity) => {
@@ -78,14 +63,7 @@ const SalesReturnModal = ({
     ));
   };
 
-  // حساب المبلغ الإجمالي للإرجاع
-  const calculateReturnAmount = () => {
-    return returnItems.reduce((total, item) => {
-      const mainAmount = (item.returnMainQuantity || 0) * (item.mainUnitPrice || 0);
-      const subAmount = (item.returnSubQuantity || 0) * (item.subUnitPrice || 0);
-      return total + mainAmount + subAmount;
-    }, 0);
-  };
+
 
 
   // تهيئة البيانات عند فتح النافذة
@@ -284,7 +262,7 @@ const SalesReturnModal = ({
                     <th className="border border-gray-300 p-3 text-center">إرجاع أساسي</th>
                     <th className="border border-gray-300 p-3 text-center">الكمية الفرعية المباعة</th>
                     <th className="border border-gray-300 p-3 text-center">إرجاع فرعي</th>
-                    <th className="border border-gray-300 p-3 text-center">مبلغ الإرجاع</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -360,13 +338,7 @@ const SalesReturnModal = ({
                         </div>
                       </td>
 
-                      {/* عرض مبلغ الإرجاع للصف */}
-                      <td className="border border-gray-300 p-3 text-center font-medium text-blue-600">
-                        {formatCurrency(
-                          ((item.returnMainQuantity || 0) * (item.mainUnitPrice || 0)) +
-                          ((item.returnSubQuantity || 0) * (item.subUnitPrice || 0))
-                        )}
-                      </td>
+
 
                     </tr>
                   ))}
@@ -435,15 +407,7 @@ const SalesReturnModal = ({
                   {returnItems.reduce((sum, item) => sum + (item.returnSubQuantity || 0), 0)} عبوة
                 </span>
               </div>
-              {/* إضافة عرض المبلغ الإجمالي للإرجاع */}
-              <div className="border-t border-green-300 pt-2 mt-2">
-                <div className="flex justify-between">
-                  <span className="text-green-700 font-semibold">إجمالي مبلغ الإرجاع:</span>
-                  <span className="font-bold text-green-900 text-lg">
-                    {formatCurrency(calculateReturnAmount())}
-                  </span>
-                </div>
-              </div>
+
             </div>
           </div>
         )}
