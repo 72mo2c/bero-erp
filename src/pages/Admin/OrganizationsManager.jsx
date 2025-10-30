@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../context/AdminAuthContext';
+import { useNotification } from '../../context/NotificationContext';
 import {
   getAllOrganizations,
   createOrganization,
@@ -20,6 +21,7 @@ import Select from '../../components/Common/Select';
 const OrganizationsManager = () => {
   const navigate = useNavigate();
   const { logout } = useAdminAuth();
+  const { showSuccess, showError } = useNotification();
   const [organizations, setOrganizations] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
@@ -84,6 +86,18 @@ const OrganizationsManager = () => {
   const handleStatusChange = (orgId, newStatus) => {
     updateOrganization(orgId, { status: newStatus });
     loadOrganizations();
+  };
+
+  const copyOrganizationLink = async (orgId) => {
+    try {
+      const baseUrl = window.location.origin;
+      const organizationLink = `${baseUrl}/org/${orgId}/login`;
+      await navigator.clipboard.writeText(organizationLink);
+      showSuccess('تم نسخ رابط المؤسسة بنجاح!');
+    } catch (error) {
+      console.error('فشل في نسخ الرابط:', error);
+      showError('فشل في نسخ رابط المؤسسة');
+    }
   };
 
   const resetForm = () => {
@@ -227,6 +241,9 @@ const OrganizationsManager = () => {
                     تاريخ الانتهاء
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                    رابط المؤسسة
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                     إجراءات
                   </th>
                 </tr>
@@ -254,6 +271,26 @@ const OrganizationsManager = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {new Date(org.subscriptionEnd).toLocaleDateString('ar-SA')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyOrganizationLink(org.id)}
+                          className="text-blue-600 hover:text-blue-700 text-sm font-medium bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors"
+                          title="نسخ رابط المؤسسة"
+                        >
+                          نسخ الرابط
+                        </button>
+                        <a
+                          href={`/org/${org.id}/login`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-600 hover:text-gray-700 text-sm font-medium"
+                          title="فتح الرابط"
+                        >
+                          فتح
+                        </a>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">

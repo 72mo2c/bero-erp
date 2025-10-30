@@ -168,14 +168,7 @@ const CustomLogin = () => {
             </div>
           </div>
 
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>بيانات الدخول الافتراضية</p>
-            <p className="mt-2 font-mono text-xs">
-              Username: <span style={{ color: primaryColor }}>admin</span>
-              <br />
-              Password: <span style={{ color: primaryColor }}>admin123</span>
-            </p>
-          </div>
+
         </div>
 
         {/* روابط مساعدة */}

@@ -227,6 +227,16 @@ const Login = () => {
             <p className="text-xs text-gray-600 text-center mt-2">
               يرجى استخدام بيانات الاعتماد الخاصة بك للدخول
             </p>
+            <div className="text-center mt-3">
+              <p className="text-xs text-gray-600 mb-1">لا تعرف مؤسستك؟</p>
+              <a 
+                href="/find-organization"
+                className="text-xs font-medium hover:text-orange-600 transition-colors"
+                style={{ color: '#ea580c' }}
+              >
+                ابحث عن مؤسستك هنا
+              </a>
+            </div>
           </div>
         </div>
 
