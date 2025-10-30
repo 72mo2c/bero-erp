@@ -504,20 +504,20 @@ export const DataProvider = ({ children, orgId }) => {
       invoice.items.forEach(item => {
         const productIndex = updatedProducts.findIndex(p => p.id === parseInt(item.productId));
         if (productIndex !== -1) {
-          // حساب الكمية الإجمالية (الرئيسية + الفرعية)
+          // حساب الكميات بشكل منفصل (الرئيسية والفرعية)
           const mainQty = parseInt(item.quantity) || 0;
           const subQty = parseInt(item.subQuantity) || 0;
-          const totalQty = mainQty + subQty;
           
           // التحقق من الكميات السالبة
-          if (totalQty < 0) {
+          if (mainQty < 0 || subQty < 0) {
             throw new Error(`الكمية لا يمكن أن تكون سالبة للمنتج: ${updatedProducts[productIndex].name}`);
           }
           
-          // زيادة الكمية الإجمالية في المخزون
+          // إضافة الكميات بشكل منفصل إلى المخزون
           updatedProducts[productIndex] = {
             ...updatedProducts[productIndex],
-            mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) + totalQty
+            mainQuantity: (updatedProducts[productIndex].mainQuantity || 0) + mainQty,
+            subQuantity: (updatedProducts[productIndex].subQuantity || 0) + subQty
           };
         }
       });
