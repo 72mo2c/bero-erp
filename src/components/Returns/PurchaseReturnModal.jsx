@@ -8,7 +8,6 @@ import Modal from '../Common/Modal';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
 import { useAuth } from '../../context/AuthContext';
-import { useSystemSettings } from '../../hooks/useSystemSettings';
 
 const PurchaseReturnModal = ({ 
   isOpen, 
@@ -29,17 +28,12 @@ const PurchaseReturnModal = ({
   const { showSuccess, showError } = useNotification();
   const { hasPermission } = useAuth();
 
-
   const [returnItems, setReturnItems] = useState([]);
-
   const [returnReason, setReturnReason] = useState('');
   const [returnNotes, setReturnNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [calculated, setCalculated] = useState(false);
   const [supplierInfo, setSupplierInfo] = useState(null);
-
-
-  };
 
 
 
