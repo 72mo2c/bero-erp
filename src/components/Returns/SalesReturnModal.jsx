@@ -91,11 +91,18 @@ const SalesReturnModal = ({
   // تهيئة البيانات عند فتح النافذة
   useEffect(() => {
     if (isOpen && invoice) {
+      console.log('🔄 فتح نافذة إرجاع الفاتورة:', invoice.id);
+      
       // تحويل عناصر الفاتورة إلى عناصر إرجاع
       const items = invoice.items?.map(item => {
         const product = products.find(p => p.id === parseInt(item.productId));
-        const mainQuantity = parseInt(item.mainQuantity || 0);
+        // دعم كل من الحقول القديمة (quantity) والجديدة (mainQuantity)
+        const mainQuantity = parseInt(item.mainQuantity || item.quantity || 0);
         const subQuantity = parseInt(item.subQuantity || 0);
+        
+        console.log(`📦 تحضير منتج: ${item.productName}`);
+        console.log(`  - item.mainQuantity: ${item.mainQuantity}, item.quantity: ${item.quantity}`);
+        console.log(`  - الكمية النهائية: أساسية=${mainQuantity}, فرعية=${subQuantity}`);
         
         return {
           productId: item.productId,
@@ -110,9 +117,9 @@ const SalesReturnModal = ({
           // للعرض والحساب
           originalMainQuantity: mainQuantity,
           originalSubQuantity: subQuantity,
-          // بيانات الأسعار للحساب
-          mainUnitPrice: parseFloat(item.mainUnitPrice || 0),
-          subUnitPrice: parseFloat(item.subUnitPrice || 0)
+          // بيانات الأسعار للحساب - دعم كل من الحقول القديمة والجديدة
+          mainUnitPrice: parseFloat(item.mainUnitPrice || item.price || 0),
+          subUnitPrice: parseFloat(item.subUnitPrice || item.subPrice || 0)
         };
       }) || [];
       

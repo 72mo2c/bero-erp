@@ -99,7 +99,8 @@ const PurchaseReturnModal = ({
       // تحويل عناصر الفاتورة إلى عناصر إرجاع
       const items = invoice.items?.map(item => {
         const product = products.find(p => p.id === parseInt(item.productId));
-        const mainQuantity = parseInt(item.quantity || 0);
+        // دعم كل من الحقول القديمة (quantity) والجديدة (mainQuantity)
+        const mainQuantity = parseInt(item.mainQuantity || item.quantity || 0);
         const subQuantity = parseInt(item.subQuantity || 0);
         
         return {
@@ -114,9 +115,9 @@ const PurchaseReturnModal = ({
           // بيانات الكميات المراد إرجاعها (منفصلة)
           returnMainQuantity: 0,
           returnSubQuantity: 0,
-          // بيانات الأسعار للحساب
-          mainUnitPrice: parseFloat(item.price || 0),
-          subUnitPrice: parseFloat(item.subPrice || 0)
+          // بيانات الأسعار للحساب - دعم كل من الحقول القديمة والجديدة
+          mainUnitPrice: parseFloat(item.mainUnitPrice || item.price || 0),
+          subUnitPrice: parseFloat(item.subUnitPrice || item.subPrice || 0)
         };
       }) || [];
       
