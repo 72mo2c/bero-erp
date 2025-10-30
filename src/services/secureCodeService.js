@@ -2397,4 +2397,6 @@ class SecureCodeService {
 // إنشاء مثيل واحد من الخدمة
 const secureCodeService = new SecureCodeService();
 
+export default secureCodeService;
+
 module.exports = secureCodeService;

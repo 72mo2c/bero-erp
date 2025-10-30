@@ -244,6 +244,8 @@ class BrowserCrypto {
         const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         let result = '';
         let buffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+        let remainingBits = 0;
+        let remainingValue = 0;
         
         for (let i = 0; i < buffer.length; i += 5) {
             const chunk = buffer.slice(i, i + 5);
@@ -255,14 +257,20 @@ class BrowserCrypto {
                 bits += 8;
             }
             
+            value = (remainingValue << bits) | value;
+            bits += remainingBits;
+            
             while (bits >= 5) {
                 result += base32Chars[(value >>> (bits - 5)) & 31];
                 bits -= 5;
             }
+            
+            remainingValue = value;
+            remainingBits = bits;
         }
         
-        if (bits > 0) {
-            result += base32Chars[(value << (5 - bits)) & 31];
+        if (remainingBits > 0) {
+            result += base32Chars[(remainingValue << (5 - remainingBits)) & 31];
         }
         
         return result;

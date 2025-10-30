@@ -16,7 +16,7 @@ const AccessCode = () => {
   const [message, setMessage] = useState(null);
   const [messageType, setMessageType] = useState('info'); // info, success, error
 
-  const { useSecureCode, loading: contextLoading } = useSecureCode();
+  const { validateSecureCode, loading: contextLoading } = useSecureCode();
 
   // معالجة رسالة إعادة التوجيه
   useEffect(() => {
@@ -52,7 +52,7 @@ const AccessCode = () => {
     setMessage(null);
 
     try {
-      const result = await useSecureCode(codeId.trim());
+      const result = await validateSecureCode(codeId.trim());
 
       if (result.valid) {
         setMessageType('success');
