@@ -129,6 +129,26 @@ const LegacyPublicRoute = ({ children }) => {
   return children;
 };
 
+// مكون wrapper لمسارات المؤسسة لاستخدام useParams بشكل صحيح
+const OrgRouteWrapper = () => {
+  const { orgId } = useParams();
+  
+  return (
+    <AuthProvider orgId={orgId}>
+      <NotificationProvider>
+        <DataProvider orgId={orgId}>
+          <TabProvider>
+            <Toast />
+            <Routes>
+              <Route path="/*" element={<OrgProtectedRoute />} />
+            </Routes>
+          </TabProvider>
+        </DataProvider>
+      </NotificationProvider>
+    </AuthProvider>
+  );
+};
+
 // تم إزالة مكون SimpleLoginPage لأسباب أمنية - لا ينبغي عرض المؤسسات للاختيار
 // سيكون التوجه مباشرة إلى صفحة تسجيل الدخول
 
@@ -198,20 +218,7 @@ function App() {
           {/* جميع مسارات المؤسسة المحمية */}
           <Route
             path="/org/:orgId/*"
-            element={
-              <AuthProvider orgId={useParams().orgId}>
-                <NotificationProvider>
-                  <DataProvider orgId={useParams().orgId}>
-                    <TabProvider>
-                      <Toast />
-                      <Routes>
-                        <Route path="/*" element={<OrgProtectedRoute />} />
-                      </Routes>
-                    </TabProvider>
-                  </DataProvider>
-                </NotificationProvider>
-              </AuthProvider>
-            }
+            element={<OrgRouteWrapper />}
           />
 
           {/* ================== مسارات المعرف الآمن ================== */}
