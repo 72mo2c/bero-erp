@@ -10,7 +10,35 @@
  * - إدارة ذكية للمخاطر
  */
 
-const crypto = require('crypto');
+// استبدال Node.js crypto بـ Web Crypto API المتوافق مع المتصفح
+const crypto = {
+    randomBytes: (length) => {
+        if (typeof window !== 'undefined' && window.crypto) {
+            const array = new Uint8Array(length);
+            window.crypto.getRandomValues(array);
+            return Buffer.from(array);
+        }
+        throw new Error('Web Crypto API غير متوفر');
+    },
+    createHash: (algorithm) => ({
+        update: (data) => ({
+            digest: (encoding) => {
+                const encoder = new TextEncoder();
+                const dataBuffer = encoder.encode(data);
+                return window.crypto.subtle.digest('SHA-256', dataBuffer)
+                    .then(buffer => Buffer.from(buffer).toString(encoding));
+            }
+        })
+    }),
+    timingSafeEqual: (a, b) => {
+        if (a.length !== b.length) return false;
+        let result = 0;
+        for (let i = 0; i < a.length; i++) {
+            result |= a[i] ^ b[i];
+        }
+        return result === 0;
+    }
+};
 
 class AdvancedRateLimiter {
     constructor() {

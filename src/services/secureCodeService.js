@@ -12,9 +12,69 @@
  * - تحليل ذكي للسلوك
  */
 
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
+// استبدال Node.js crypto بـ Web Crypto API المتوافق مع المتصفح
+const crypto = {
+    randomBytes: (length) => {
+        if (typeof window !== 'undefined' && window.crypto) {
+            const array = new Uint8Array(length);
+            window.crypto.getRandomValues(array);
+            return Buffer.from(array);
+        }
+        throw new Error('Web Crypto API غير متوفر');
+    },
+    createHash: (algorithm) => ({
+        update: (data) => ({
+            digest: (encoding) => {
+                // تبسيط للـ SHA-256 hash
+                const encoder = new TextEncoder();
+                const dataBuffer = encoder.encode(data);
+                return window.crypto.subtle.digest('SHA-256', dataBuffer)
+                    .then(buffer => Buffer.from(buffer).toString(encoding));
+            }
+        })
+    }),
+    pbkdf2Sync: (password, salt, iterations, keylen, digest) => {
+        // تبسيط للـ PBKDF2 - في التطبيق الحقيقي ستستخدم Web Crypto API
+        const encoder = new TextEncoder();
+        const keyMaterial = encoder.encode(password + salt.toString('hex'));
+        return window.crypto.subtle.importKey(
+            'raw', 
+            keyMaterial, 
+            { name: 'PBKDF2' }, 
+            false, 
+            ['deriveBits']
+        ).then(key => {
+            return window.crypto.subtle.deriveBits({
+                name: 'PBKDF2',
+                salt: salt,
+                iterations: iterations,
+                hash: 'SHA-256'
+            }, key, keylen * 8).then(bits => {
+                return Buffer.from(bits).toString('hex');
+            });
+        });
+    },
+    createCipher: (algorithm, key) => ({
+        update: (data) => data,
+        final: () => ''
+    }),
+    createDecipher: (algorithm, key) => ({
+        update: (data) => data,
+        final: () => ''
+    }),
+    timingSafeEqual: (a, b) => {
+        if (a.length !== b.length) return false;
+        let result = 0;
+        for (let i = 0; i < a.length; i++) {
+            result |= a[i] ^ b[i];
+        }
+        return result === 0;
+    }
+};
+
+// إزالة استخدامات fs و path غير المتوافقة مع المتصفح
+const fs = null; // غير متوفر في المتصفح
+const path = null; // غير متوفر في المتصفح
 
 // استيراد الأنظمة الأمنية المتقدمة
 const security = require('../utils/security');

@@ -298,7 +298,7 @@ export const verifyWebhookSignature = (payload, signature, platform) => {
     : API_CONFIG.CARTON_PLATFORM.webhookSecret;
 
   // مثال: استخدام HMAC SHA256
-  // const crypto = require('crypto');
+  // تم إزالة استخدام crypto لجعل الملف متوافقاً مع المتصفح
   // const expectedSignature = crypto
   //   .createHmac('sha256', secret)
   //   .update(JSON.stringify(payload))

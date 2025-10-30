@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>اختبار البيانات</title>
+    <style>
+        body { font-family: Arial; margin: 20px; direction: rtl; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h2>🔍 اختبار البيانات - تشخيص مشكلة الصفحة الفارغة</h2>
+    <div id="result"></div>
+    <button onclick="runTest()">إعادة الفحص</button>
+    
+    <script>
+        function runTest() {
+            // فحص البيانات المحفوظة
+            const keys = [
+                'org_1_purchaseInvoices',
+                'org_1_purchaseReturns', 
+                'org_1_products',
+                'org_1_suppliers'
+            ];
+            
+            let result = '<h3>📊 فحص localStorage:</h3>';
+            let hasData = false;
+            
+            keys.forEach(key => {
+                const data = localStorage.getItem(key);
+                const parsedData = data ? JSON.parse(data) : null;
+                const length = Array.isArray(parsedData) ? parsedData.length : 'ليس مصفوفة';
+                
+                if (data && Array.isArray(parsedData) && parsedData.length > 0) {
+                    hasData = true;
+                    result += `<p class="success">✅ <strong>${key}:</strong> ${length} عنصر</p>`;
+                } else {
+                    result += `<p class="error">❌ <strong>${key}:</strong> فارغ أو غير موجود</p>`;
+                }
+                
+                // عرض تفاصيل فواتير المشتريات
+                if (key === 'org_1_purchaseInvoices' && data) {
+                    const invoices = JSON.parse(data);
+                    result += '<div style="margin-right: 20px;"><h4>📋 عينة من الفواتير:</h4><ul>';
+                    invoices.slice(0, 5).forEach(inv => {
+                        result += `<li>فاتورة ${inv.id} (${typeof inv.id}) - المورد: ${inv.supplierId}</li>`;
+                    });
+                    if (invoices.length > 5) result += `<li>... و ${invoices.length - 5} فاتورة أخرى</li>`;
+                    result += '</ul></div>';
+                }
+            });
+            
+            // فحص URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const testInvoiceId = urlParams.get('invoiceId') || '1';
+            
+            result += `<h3>🔗 اختبار التوجيه:</h3>`;
+            result += `<p>رابط اختبار الإرجاع: <a href="/purchases/return/${testInvoiceId}" target="_blank">فتح صفحة إرجاع فاتورة ${testInvoiceId}</a></p>`;
+            
+            // فحص React DevTools
+            result += `<h3>⚙️ فحص React:</h3>`;
+            if (window.React) {
+                result += `<p class="success">✅ React محمل: ${React.version}</p>`;
+            } else {
+                result += `<p class="error">❌ React غير محمل</p>`;
+            }
+            
+            // فحص Console Errors
+            result += `<h3>🐛 فحص الأخطاء:</h3>`;
+            result += `<p class="info">ℹ️ تحقق من Console للأخطاء (F12 → Console)</p>`;
+            
+            if (!hasData) {
+                result += `<div style="background: #ffebee; padding: 15px; border-radius: 5px; margin-top: 20px;">
+                    <h4 class="error">⚠️ السبب المحتمل للصفحة الفارغة:</h4>
+                    <p>لا توجد بيانات في localStorage. هذا يعني أن:</p>
+                    <ul>
+                        <li>النظام لم يتم استخدامه من قبل</li>
+                        <li>تم حذف البيانات</li>
+                        <li>هناك مشكلة في تحميل البيانات</li>
+                    </ul>
+                    <p><strong>الحل:</strong> ارجع إلى الصفحة الرئيسية وأضف بعض البيانات أولاً</p>
+                </div>`;
+            }
+            
+            document.getElementById('result').innerHTML = result;
+        }
+        
+        // تشغيل الفحص عند تحميل الصفحة
+        window.onload = runTest;
+    </script>
+</body>
+</html>
