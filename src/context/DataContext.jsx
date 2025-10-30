@@ -1375,10 +1375,9 @@ export const DataProvider = ({ children, orgId }) => {
   
   const addSalesReturn = (returnData) => {
     try {
-      // التحقق من الصلاحيات
-      if (!checkPermission('create', 'returns')) {
-        throw new Error('ليس لديك صلاحية إنشاء مرتجعات مبيعات');
-      }
+      // تم نقل فحص الصلاحيات إلى طبقة UI (SalesReturnModal.jsx)
+      // يتم التحقق من الصلاحيات باستخدام hasPermission من AuthContext
+      // هذا يضمن استخدام نظام صلاحيات موحد ومحدث
       
       // التحقق من صحة البيانات
       const validation = validateReturnData(returnData, RETURN_TYPES.SALES);
