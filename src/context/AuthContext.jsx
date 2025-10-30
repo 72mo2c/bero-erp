@@ -164,10 +164,19 @@ export const AuthProvider = ({ children, orgId }) => {
   // الحصول على الصلاحيات من إعدادات النظام
   const getPermissionsMatrix = useCallback(() => {
     try {
+      // الحصول على الصلاحيات الافتراضية أولاً
+      const defaultMatrix = getDefaultPermissionsMatrix();
+      
       const settings = localStorage.getItem('bero_system_settings');
       if (settings) {
         const parsed = JSON.parse(settings);
-        return parsed.permissions?.matrix || getDefaultPermissionsMatrix();
+        const savedMatrix = parsed.permissions?.matrix;
+        
+        if (savedMatrix) {
+          // دمج الصلاحيات المحفوظة مع الصلاحيات الافتراضية
+          // الصلاحيات الافتراضية لها الأولوية لضمان وجود الصلاحيات الجديدة
+          return { ...savedMatrix, ...defaultMatrix };
+        }
       }
     } catch (error) {
       console.error('خطأ في تحميل مصفوفة الصلاحيات:', error);
