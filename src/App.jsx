@@ -139,9 +139,7 @@ const OrgRouteWrapper = () => {
         <DataProvider orgId={orgId}>
           <TabProvider>
             <Toast />
-            <Routes>
-              <Route path="/*" element={<OrgProtectedRoute />} />
-            </Routes>
+            <OrgProtectedRoute />
           </TabProvider>
         </DataProvider>
       </NotificationProvider>
@@ -318,9 +316,7 @@ function App() {
                   <DataProvider>
                     <TabProvider>
                       <Toast />
-                      <Routes>
-                        <Route path="/*" element={<LegacyProtectedRoute />} />
-                      </Routes>
+                      <LegacyProtectedRoute />
                     </TabProvider>
                   </DataProvider>
                 </NotificationProvider>
