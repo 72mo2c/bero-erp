@@ -718,21 +718,40 @@ export const DataProvider = ({ children, orgId }) => {
           }
         });
         
-        // الكمية المتاحة للإرجاع
-        const originalQty = (originalItem.quantity || 0) + (originalItem.subQuantity || 0);
-        const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
-        const availableQty = originalQty - totalReturnedQty;
+        // حساب المرتجعات السابقة لكل وحدة منفصلة
+        let returnedMainQty = 0;
+        let returnedSubQty = 0;
+        previousReturns.forEach(ret => {
+          const retItem = ret.items.find(i => i.productId === parseInt(item.productId));
+          if (retItem) {
+            returnedMainQty += (retItem.quantity || 0);
+            returnedSubQty += (retItem.subQuantity || 0);
+          }
+        });
+        
+        // الكمية المتاحة للإرجاع لكل وحدة
+        const availableMainQty = (originalItem.quantity || 0) - returnedMainQty;
+        const availableSubQty = (originalItem.subQuantity || 0) - returnedSubQty;
+        
+        // الكمية المطلوب إرجاعها
+        const returnMainQty = (item.quantity || 0);
+        const returnSubQty = (item.subQuantity || 0);
         
         // تشخيص مفصل للكميات (مرتجعات مشتريات)
         console.log('=== تشخيص الكميات - مرتجعات مشتريات ===');
         console.log(`المنتج: ${originalItem.productName}`);
-        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}, إجمالي=${originalQty}`);
-        console.log(`المرتجعات السابقة: ${totalReturnedQty} (من ${previousReturns.length} مرتجع)`);
-        console.log(`الكمية المتاحة للإرجاع: ${availableQty}`);
-        console.log(`الكمية المطلوب إرجاعها: أساسية=${item.quantity || 0}, فرعية=${item.subQuantity || 0}, إجمالي=${returnQty}`);
+        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}`);
+        console.log(`المرتجعات السابقة: أساسية=${returnedMainQty}, فرعية=${returnedSubQty}`);
+        console.log(`الكمية المتاحة للإرجاع: أساسية=${availableMainQty}, فرعية=${availableSubQty}`);
+        console.log(`الكمية المطلوب إرجاعها: أساسية=${returnMainQty}, فرعية=${returnSubQty}`);
         
-        if (returnQty > availableQty) {
-          throw new Error(`الكمية المرتجعة (${returnQty}) تتجاوز الكمية المتاحة (${availableQty}) للمنتج ${originalItem.productName}`);
+        // التحقق من صحة الكميات - يجب التعامل مع كل وحدة منفصلة
+        if (returnMainQty > availableMainQty) {
+          throw new Error(`الكمية الأساسية المرتجعة (${returnMainQty}) تتجاوز الكمية المتاحة (${availableMainQty}) للمنتج ${originalItem.productName}`);
+        }
+        
+        if (returnSubQty > availableSubQty) {
+          throw new Error(`الكمية الفرعية المرتجعة (${returnSubQty}) تتجاوز الكمية المتاحة (${availableSubQty}) للمنتج ${originalItem.productName}`);
         }
         
         // حساب المبلغ المرتجع
@@ -1427,21 +1446,40 @@ export const DataProvider = ({ children, orgId }) => {
           }
         });
         
-        // الكمية المتاحة للإرجاع
-        const originalQty = (originalItem.quantity || 0) + (originalItem.subQuantity || 0);
-        const returnQty = (item.quantity || 0) + (item.subQuantity || 0);
-        const availableQty = originalQty - totalReturnedQty;
+        // حساب المرتجعات السابقة لكل وحدة منفصلة
+        let returnedMainQty = 0;
+        let returnedSubQty = 0;
+        previousReturns.forEach(ret => {
+          const retItem = ret.items.find(i => i.productId === parseInt(item.productId));
+          if (retItem) {
+            returnedMainQty += (retItem.quantity || 0);
+            returnedSubQty += (retItem.subQuantity || 0);
+          }
+        });
+        
+        // الكمية المتاحة للإرجاع لكل وحدة
+        const availableMainQty = (originalItem.quantity || 0) - returnedMainQty;
+        const availableSubQty = (originalItem.subQuantity || 0) - returnedSubQty;
+        
+        // الكمية المطلوب إرجاعها
+        const returnMainQty = (item.quantity || 0);
+        const returnSubQty = (item.subQuantity || 0);
         
         // تشخيص مفصل للكميات
         console.log('=== تشخيص الكميات ===');
         console.log(`المنتج: ${originalItem.productName}`);
-        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}, إجمالي=${originalQty}`);
-        console.log(`المرتجعات السابقة: ${totalReturnedQty} (من ${previousReturns.length} مرتجع)`);
-        console.log(`الكمية المتاحة للإرجاع: ${availableQty}`);
-        console.log(`الكمية المطلوب إرجاعها: أساسية=${item.quantity || 0}, فرعية=${item.subQuantity || 0}, إجمالي=${returnQty}`);
+        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}`);
+        console.log(`المرتجعات السابقة: أساسية=${returnedMainQty}, فرعية=${returnedSubQty}`);
+        console.log(`الكمية المتاحة للإرجاع: أساسية=${availableMainQty}, فرعية=${availableSubQty}`);
+        console.log(`الكمية المطلوب إرجاعها: أساسية=${returnMainQty}, فرعية=${returnSubQty}`);
         
-        if (returnQty > availableQty) {
-          throw new Error(`الكمية المرتجعة (${returnQty}) تتجاوز الكمية المتاحة (${availableQty}) للمنتج ${originalItem.productName}`);
+        // التحقق من صحة الكميات - يجب التعامل مع كل وحدة منفصلة
+        if (returnMainQty > availableMainQty) {
+          throw new Error(`الكمية الأساسية المرتجعة (${returnMainQty}) تتجاوز الكمية المتاحة (${availableMainQty}) للمنتج ${originalItem.productName}`);
+        }
+        
+        if (returnSubQty > availableSubQty) {
+          throw new Error(`الكمية الفرعية المرتجعة (${returnSubQty}) تتجاوز الكمية المتاحة (${availableSubQty}) للمنتج ${originalItem.productName}`);
         }
         
         // حساب المبلغ المرتجع
