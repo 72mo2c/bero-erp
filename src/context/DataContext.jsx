@@ -730,7 +730,8 @@ export const DataProvider = ({ children, orgId }) => {
         });
         
         // الكمية المتاحة للإرجاع لكل وحدة
-        const availableMainQty = (originalItem.quantity || 0) - returnedMainQty;
+        // دعم كل من الحقول القديمة (quantity) والجديدة (mainQuantity)
+        const availableMainQty = (originalItem.mainQuantity || originalItem.quantity || 0) - returnedMainQty;
         const availableSubQty = (originalItem.subQuantity || 0) - returnedSubQty;
         
         // الكمية المطلوب إرجاعها
@@ -740,7 +741,7 @@ export const DataProvider = ({ children, orgId }) => {
         // تشخيص مفصل للكميات (مرتجعات مشتريات)
         console.log('=== تشخيص الكميات - مرتجعات مشتريات ===');
         console.log(`المنتج: ${originalItem.productName}`);
-        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}`);
+        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.mainQuantity || originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}`);
         console.log(`المرتجعات السابقة: أساسية=${returnedMainQty}, فرعية=${returnedSubQty}`);
         console.log(`الكمية المتاحة للإرجاع: أساسية=${availableMainQty}, فرعية=${availableSubQty}`);
         console.log(`الكمية المطلوب إرجاعها: أساسية=${returnMainQty}, فرعية=${returnSubQty}`);
@@ -1458,7 +1459,8 @@ export const DataProvider = ({ children, orgId }) => {
         });
         
         // الكمية المتاحة للإرجاع لكل وحدة
-        const availableMainQty = (originalItem.quantity || 0) - returnedMainQty;
+        // دعم كل من الحقول القديمة (quantity) والجديدة (mainQuantity)
+        const availableMainQty = (originalItem.mainQuantity || originalItem.quantity || 0) - returnedMainQty;
         const availableSubQty = (originalItem.subQuantity || 0) - returnedSubQty;
         
         // الكمية المطلوب إرجاعها
@@ -1468,7 +1470,7 @@ export const DataProvider = ({ children, orgId }) => {
         // تشخيص مفصل للكميات
         console.log('=== تشخيص الكميات ===');
         console.log(`المنتج: ${originalItem.productName}`);
-        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}`);
+        console.log(`الكمية الأصلية في الفاتورة: أساسية=${originalItem.mainQuantity || originalItem.quantity || 0}, فرعية=${originalItem.subQuantity || 0}`);
         console.log(`المرتجعات السابقة: أساسية=${returnedMainQty}, فرعية=${returnedSubQty}`);
         console.log(`الكمية المتاحة للإرجاع: أساسية=${availableMainQty}, فرعية=${availableSubQty}`);
         console.log(`الكمية المطلوب إرجاعها: أساسية=${returnMainQty}, فرعية=${returnSubQty}`);
