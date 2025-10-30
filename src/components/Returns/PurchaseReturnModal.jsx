@@ -117,7 +117,13 @@ const PurchaseReturnModal = ({
     }
 
     // التحقق من اختيار منتجات للإرجاع
-    const itemsToReturn = returnItems.filter(item => item.returnQuantity > 0);
+    const itemsToReturn = returnItems
+      .filter(item => item.returnQuantity > 0)
+      .map(item => ({
+        ...item,
+        quantity: item.returnQuantity, // تحويل returnQuantity إلى quantity للتوافق مع validateReturnData
+        productId: item.productId
+      }));
     if (itemsToReturn.length === 0) {
       showError('يرجى اختيار منتجات للإرجاع');
       return;
@@ -141,8 +147,10 @@ const PurchaseReturnModal = ({
         supplierAddress: supplierInfo?.address || '',
         supplierPhone: supplierInfo?.phone || '',
         items: itemsToReturn,
-        returnReason: returnReason.trim(),
-        returnNotes: returnNotes.trim(),
+        reason: returnReason.trim(),
+        notes: returnNotes.trim(),
+        returnReason: returnReason.trim(), // للتوافق مع الحقول الأخرى
+        returnNotes: returnNotes.trim(),   // للتوافق مع الحقول الأخرى
         returnAmount: totalReturnAmount,
         originalAmount: invoice.total || 0,
         returnDate: new Date().toISOString().split('T')[0],
