@@ -3,7 +3,7 @@
 // ======================================
 
 import React, { useState, useEffect } from 'react';
-import { FaUndo, FaSave, FaTimes, FaPlus, FaMinus, FaCalculator } from 'react-icons/fa';
+import { FaUndo, FaSave, FaTimes, FaPlus, FaMinus } from 'react-icons/fa';
 import Modal from '../Common/Modal';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -31,7 +31,7 @@ const PurchaseReturnModal = ({
   const { settings } = useSystemSettings();
 
   const [returnItems, setReturnItems] = useState([]);
-  const [totalReturnAmount, setTotalReturnAmount] = useState(0);
+
   const [returnReason, setReturnReason] = useState('');
   const [returnNotes, setReturnNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,34 +51,35 @@ const PurchaseReturnModal = ({
     return formatted;
   };
 
-  // حساب الإجمالي
-  const calculateTotal = () => {
-    const total = returnItems.reduce((sum, item) => {
-      // حساب النسبة المرتجعة وتطبيقها على السعر الإجمالي الأصلي
-      const returnRatio = item.returnQuantity / item.purchasedQuantity;
-      const itemTotal = item.totalPrice * returnRatio;
-      return sum + (itemTotal || 0);
-    }, 0);
-    
-    setTotalReturnAmount(total);
-    return total;
-  };
 
-  // تحديث الكمية المراد إرجاعها
-  const updateReturnQuantity = (productId, newQuantity) => {
+
+  // تحديث الكمية الأساسية المراد إرجاعها
+  const updateReturnMainQuantity = (productId, newQuantity) => {
     setReturnItems(prev => prev.map(item => 
       item.productId === productId 
-        ? { ...item, returnQuantity: Math.max(0, Math.min(newQuantity, item.purchasedQuantity)) }
+        ? { 
+            ...item, 
+            returnMainQuantity: Math.max(0, Math.min(newQuantity, item.originalMainQuantity)),
+            totalReturnQuantity: Math.max(0, Math.min(newQuantity, item.originalMainQuantity)) + (item.returnSubQuantity || 0)
+          }
         : item
     ));
   };
 
-  // حساب الإجمالي عند تغيير البيانات
-  useEffect(() => {
-    if (calculated) {
-      calculateTotal();
-    }
-  }, [returnItems, calculated]);
+  // تحديث الكمية الفرعية المراد إرجاعها
+  const updateReturnSubQuantity = (productId, newQuantity) => {
+    setReturnItems(prev => prev.map(item => 
+      item.productId === productId 
+        ? { 
+            ...item, 
+            returnSubQuantity: Math.max(0, Math.min(newQuantity, item.originalSubQuantity)),
+            totalReturnQuantity: (item.returnMainQuantity || 0) + Math.max(0, Math.min(newQuantity, item.originalSubQuantity))
+          }
+        : item
+    ));
+  };
+
+
 
   // تهيئة البيانات عند فتح النافذة
   useEffect(() => {
@@ -90,25 +91,27 @@ const PurchaseReturnModal = ({
       // تحويل عناصر الفاتورة إلى عناصر إرجاع
       const items = invoice.items?.map(item => {
         const product = products.find(p => p.id === parseInt(item.productId));
+        const mainQuantity = parseInt(item.quantity || 0);
+        const subQuantity = parseInt(item.subQuantity || 0);
+        
         return {
           productId: item.productId,
           productName: item.productName || product?.name || 'منتج غير معروف',
-          // حفظ البيانات الأصلية للرجوع إليها
-          originalMainQuantity: item.quantity || 0,
-          originalSubQuantity: item.subQuantity || 0,
-          originalMainPrice: item.unitPrice || item.price || 0,
-          originalSubPrice: item.subPrice || 0,
-          // للعرض في الواجهة
-          purchasedQuantity: (item.quantity || 0) + (item.subQuantity || 0),
-          returnQuantity: 0,
-          unitPrice: item.unitPrice || item.price || 0,
-          totalPrice: ((item.quantity || 0) * (item.unitPrice || item.price || 0)) + 
-                     ((item.subQuantity || 0) * (item.subPrice || 0))
+          // بيانات الكميات الأصلية المشتراة
+          originalMainQuantity: mainQuantity,
+          originalSubQuantity: subQuantity,
+          purchasedMainQuantity: mainQuantity,
+          purchasedSubQuantity: subQuantity,
+          totalPurchasedQuantity: mainQuantity + subQuantity,
+          // بيانات الكميات المراد إرجاعها (منفصلة)
+          returnMainQuantity: 0,
+          returnSubQuantity: 0,
+          totalReturnQuantity: 0
         };
       }) || [];
       
       setReturnItems(items);
-      setTotalReturnAmount(0);
+
       setReturnReason('');
       setReturnNotes('');
       setCalculated(true);
@@ -126,21 +129,9 @@ const PurchaseReturnModal = ({
     }
 
     // التحقق من اختيار منتجات للإرجاع
-    const itemsToReturn = returnItems
-      .filter(item => item.returnQuantity > 0)
-      .map(item => {
-        // حساب الكميات بناءً على النسبة المرتجعة
-        const returnRatio = item.returnQuantity / item.purchasedQuantity;
-        const mainQtyToReturn = Math.round(item.originalMainQuantity * returnRatio);
-        const subQtyToReturn = Math.round(item.originalSubQuantity * returnRatio);
-        
-        return {
-          ...item,
-          quantity: mainQtyToReturn,        // الكمية الأساسية المرتجعة
-          subQuantity: subQtyToReturn,      // الكمية الفرعية المرتجعة  
-          productId: item.productId
-        };
-      });
+    const itemsToReturn = returnItems.filter(item => 
+      (item.returnMainQuantity > 0) || (item.returnSubQuantity > 0)
+    );
     if (itemsToReturn.length === 0) {
       showError('يرجى اختيار منتجات للإرجاع');
       return;
@@ -154,7 +145,15 @@ const PurchaseReturnModal = ({
     setLoading(true);
 
     try {
-      // إنشاء سجل الإرجاع
+      // إنشاء سجل الإرجاع بالكميات المنفصلة فقط
+      const itemsToReturn = returnItems
+        .filter(item => (item.returnMainQuantity > 0) || (item.returnSubQuantity > 0))
+        .map(item => ({
+          productId: parseInt(item.productId),
+          productName: item.productName,
+          quantity: item.returnMainQuantity || 0, // الكمية الأساسية المرتجعة
+          subQuantity: item.returnSubQuantity || 0 // الكمية الفرعية المرتجعة
+        }));
       const returnRecord = {
         id: `purchase_return_${Date.now()}`,
         invoiceId: invoice.id,
@@ -168,8 +167,7 @@ const PurchaseReturnModal = ({
         notes: returnNotes.trim(),
         returnReason: returnReason.trim(), // للتوافق مع الحقول الأخرى
         returnNotes: returnNotes.trim(),   // للتوافق مع الحقول الأخرى
-        returnAmount: totalReturnAmount,
-        originalAmount: invoice.total || 0,
+
         returnDate: new Date().toISOString().split('T')[0],
         status: 'pending',
         createdAt: new Date().toISOString(),
@@ -197,7 +195,7 @@ const PurchaseReturnModal = ({
   const handleClose = () => {
     setCalculated(false);
     setReturnItems([]);
-    setTotalReturnAmount(0);
+
     onClose();
   };
 
@@ -212,10 +210,7 @@ const PurchaseReturnModal = ({
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-4">
-            <div className="text-lg font-bold text-green-600">
-              <FaCalculator className="inline ml-2" />
-              إجمالي الإرجاع: {formatCurrency(totalReturnAmount)}
-            </div>
+            {/* تم إزالة عرض إجمالي الإرجاع */}
           </div>
           
           <div className="flex gap-3">
@@ -229,7 +224,9 @@ const PurchaseReturnModal = ({
             </button>
             <button
               onClick={handleSaveReturn}
-              disabled={loading || !canReturnInvoice || returnItems.every(item => item.returnQuantity === 0)}
+              disabled={loading || !canReturnInvoice || returnItems.every(item => 
+                (item.returnMainQuantity || 0) === 0 && (item.returnSubQuantity || 0) === 0
+              )}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -252,7 +249,7 @@ const PurchaseReturnModal = ({
         {/* معلومات الفاتورة الأساسية */}
         <div className="bg-orange-50 p-4 rounded-lg">
           <h4 className="text-lg font-semibold text-orange-800 mb-3">معلومات الفاتورة الأصلية</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="font-medium text-orange-700">رقم الفاتورة:</span>
               <div className="text-orange-900">{invoice.id}</div>
@@ -266,10 +263,6 @@ const PurchaseReturnModal = ({
             <div>
               <span className="font-medium text-orange-700">التاريخ:</span>
               <div className="text-orange-900">{invoice.date || 'غير محدد'}</div>
-            </div>
-            <div>
-              <span className="font-medium text-orange-700">المبلغ الإجمالي:</span>
-              <div className="text-orange-900 font-bold">{formatCurrency(invoice.total)}</div>
             </div>
           </div>
         </div>
@@ -288,10 +281,10 @@ const PurchaseReturnModal = ({
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 p-3 text-right">المنتج</th>
-                    <th className="border border-gray-300 p-3 text-center">الكمية المشتراة</th>
-                    <th className="border border-gray-300 p-3 text-center">كمية الإرجاع</th>
-                    <th className="border border-gray-300 p-3 text-center">سعر الوحدة</th>
-                    <th className="border border-gray-300 p-3 text-center">المجموع</th>
+                    <th className="border border-gray-300 p-3 text-center">الكمية الأساسية المشتراة</th>
+                    <th className="border border-gray-300 p-3 text-center">إرجاع أساسي</th>
+                    <th className="border border-gray-300 p-3 text-center">الكمية الفرعية المشتراة</th>
+                    <th className="border border-gray-300 p-3 text-center">إرجاع فرعي</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -300,35 +293,71 @@ const PurchaseReturnModal = ({
                       <td className="border border-gray-300 p-3 font-medium">
                         {item.productName}
                       </td>
-                      <td className="border border-gray-300 p-3 text-center">
-                        {item.purchasedQuantity}
+                      
+                      {/* الكمية الأساسية المشتراة */}
+                      <td className="border border-gray-300 p-3 text-center font-medium text-orange-600">
+                        {item.purchasedMainQuantity}
                       </td>
+                      
+                      {/* إرجاع كمية أساسية */}
                       <td className="border border-gray-300 p-3">
                         <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => updateReturnQuantity(item.productId, item.returnQuantity - 1)}
-                            disabled={item.returnQuantity === 0}
+                            onClick={() => updateReturnMainQuantity(item.productId, item.returnMainQuantity - 1)}
+                            disabled={item.returnMainQuantity === 0}
                             className="p-1 text-red-600 hover:bg-red-50 rounded disabled:text-gray-400 disabled:cursor-not-allowed"
                           >
                             <FaMinus size={12} />
                           </button>
-                          <span className="w-16 text-center px-2 py-1 border border-gray-300 rounded">
-                            {item.returnQuantity}
-                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.purchasedMainQuantity}
+                            value={item.returnMainQuantity || 0}
+                            onChange={(e) => updateReturnMainQuantity(item.productId, parseInt(e.target.value) || 0)}
+                            className="w-16 text-center px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
                           <button
-                            onClick={() => updateReturnQuantity(item.productId, item.returnQuantity + 1)}
-                            disabled={item.returnQuantity >= item.purchasedQuantity}
+                            onClick={() => updateReturnMainQuantity(item.productId, item.returnMainQuantity + 1)}
+                            disabled={item.returnMainQuantity >= item.purchasedMainQuantity}
                             className="p-1 text-green-600 hover:bg-green-50 rounded disabled:text-gray-400 disabled:cursor-not-allowed"
                           >
                             <FaPlus size={12} />
                           </button>
                         </div>
                       </td>
-                      <td className="border border-gray-300 p-3 text-center">
-                        {formatCurrency(item.unitPrice)}
+                      
+                      {/* الكمية الفرعية المشتراة */}
+                      <td className="border border-gray-300 p-3 text-center font-medium text-purple-600">
+                        {item.purchasedSubQuantity}
                       </td>
-                      <td className="border border-gray-300 p-3 text-center font-bold">
-                        {formatCurrency(item.returnQuantity * item.unitPrice)}
+                      
+                      {/* إرجاع كمية فرعية */}
+                      <td className="border border-gray-300 p-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => updateReturnSubQuantity(item.productId, item.returnSubQuantity - 1)}
+                            disabled={item.returnSubQuantity === 0}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded disabled:text-gray-400 disabled:cursor-not-allowed"
+                          >
+                            <FaMinus size={12} />
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            max={item.purchasedSubQuantity}
+                            value={item.returnSubQuantity || 0}
+                            onChange={(e) => updateReturnSubQuantity(item.productId, parseInt(e.target.value) || 0)}
+                            className="w-16 text-center px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                          <button
+                            onClick={() => updateReturnSubQuantity(item.productId, item.returnSubQuantity + 1)}
+                            disabled={item.returnSubQuantity >= item.purchasedSubQuantity}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded disabled:text-gray-400 disabled:cursor-not-allowed"
+                          >
+                            <FaPlus size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -376,25 +405,27 @@ const PurchaseReturnModal = ({
         </div>
 
         {/* ملخص الإرجاع */}
-        {returnItems.some(item => item.returnQuantity > 0) && (
+        {returnItems.some(item => (item.returnMainQuantity > 0) || (item.returnSubQuantity > 0)) && (
           <div className="bg-green-50 p-4 rounded-lg border border-green-200">
             <h5 className="text-lg font-semibold text-green-800 mb-3">ملخص الإرجاع</h5>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-green-700">عدد المنتجات المرجعة:</span>
                 <span className="font-medium text-green-900">
-                  {returnItems.filter(item => item.returnQuantity > 0).length} منتج
+                  {returnItems.filter(item => (item.returnMainQuantity > 0) || (item.returnSubQuantity > 0)).length} منتج
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-green-700">إجمالي الكمية المرجعة:</span>
+                <span className="text-green-700">إجمالي الكمية الأساسية المرجعة:</span>
                 <span className="font-medium text-green-900">
-                  {returnItems.reduce((sum, item) => sum + item.returnQuantity, 0)} قطعة
+                  {returnItems.reduce((sum, item) => sum + (item.returnMainQuantity || 0), 0)} قطعة
                 </span>
               </div>
-              <div className="flex justify-between text-lg font-bold border-t border-green-300 pt-2">
-                <span className="text-green-800">إجمالي قيمة الإرجاع:</span>
-                <span className="text-green-900">{formatCurrency(totalReturnAmount)}</span>
+              <div className="flex justify-between">
+                <span className="text-green-700">إجمالي الكمية الفرعية المرجعة:</span>
+                <span className="font-medium text-green-900">
+                  {returnItems.reduce((sum, item) => sum + (item.returnSubQuantity || 0), 0)} عبوة
+                </span>
               </div>
             </div>
           </div>

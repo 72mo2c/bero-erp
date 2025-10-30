@@ -3,7 +3,7 @@
 // ======================================
 
 import React, { useState, useEffect } from 'react';
-import { FaUndo, FaSave, FaTimes, FaPlus, FaMinus, FaCalculator } from 'react-icons/fa';
+import { FaUndo, FaSave, FaTimes, FaPlus, FaMinus } from 'react-icons/fa';
 import Modal from '../Common/Modal';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -31,7 +31,7 @@ const SalesReturnModal = ({
   const { settings } = useSystemSettings();
 
   const [returnItems, setReturnItems] = useState([]);
-  const [totalReturnAmount, setTotalReturnAmount] = useState(0);
+
   const [returnReason, setReturnReason] = useState('');
   const [returnNotes, setReturnNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -50,17 +50,7 @@ const SalesReturnModal = ({
     return formatted;
   };
 
-  // حساب الإجمالي
-  const calculateTotal = () => {
-    const total = returnItems.reduce((sum, item) => {
-      const mainTotal = (item.returnMainQuantity || 0) * (item.mainUnitPrice || 0);
-      const subTotal = (item.returnSubQuantity || 0) * (item.subUnitPrice || 0);
-      return sum + mainTotal + subTotal;
-    }, 0);
-    
-    setTotalReturnAmount(total);
-    return total;
-  };
+
 
   // تحديث الكمية الأساسية المراد إرجاعها
   const updateReturnMainQuantity = (productId, newQuantity) => {
@@ -88,12 +78,7 @@ const SalesReturnModal = ({
     ));
   };
 
-  // حساب الإجمالي عند تغيير البيانات
-  useEffect(() => {
-    if (calculated) {
-      calculateTotal();
-    }
-  }, [returnItems, calculated]);
+
 
   // تهيئة البيانات عند فتح النافذة
   useEffect(() => {
@@ -115,9 +100,6 @@ const SalesReturnModal = ({
           returnMainQuantity: 0,
           returnSubQuantity: 0,
           totalReturnQuantity: 0,
-          // بيانات الأسعار
-          mainUnitPrice: item.mainUnitPrice || item.unitPrice || 0,
-          subUnitPrice: item.subUnitPrice || item.unitPrice || 0,
           // للعرض والحساب
           originalMainQuantity: mainQuantity,
           originalSubQuantity: subQuantity
@@ -125,7 +107,7 @@ const SalesReturnModal = ({
       }) || [];
       
       setReturnItems(items);
-      setTotalReturnAmount(0);
+
       setReturnReason('');
       setReturnNotes('');
       setCalculated(true);
@@ -159,23 +141,15 @@ const SalesReturnModal = ({
     setLoading(true);
 
     try {
-      // إنشاء سجل الإرجاع مع حساب الكميات المنفصلة
+      // إنشاء سجل الإرجاع بالكميات المنفصلة فقط
       const itemsToReturn = returnItems
         .filter(item => (item.returnMainQuantity > 0) || (item.returnSubQuantity > 0))
-        .map(item => {
-          const mainAmount = (item.returnMainQuantity || 0) * (item.mainUnitPrice || 0);
-          const subAmount = (item.returnSubQuantity || 0) * (item.subUnitPrice || 0);
-          
-          return {
-            productId: parseInt(item.productId),
-            productName: item.productName,
-            quantity: item.returnMainQuantity || 0, // الكمية الأساسية المرتجعة
-            subQuantity: item.returnSubQuantity || 0, // الكمية الفرعية المرتجعة
-            mainUnitPrice: item.mainUnitPrice || 0,
-            subUnitPrice: item.subUnitPrice || 0,
-            totalAmount: mainAmount + subAmount
-          };
-        });
+        .map(item => ({
+          productId: parseInt(item.productId),
+          productName: item.productName,
+          quantity: item.returnMainQuantity || 0, // الكمية الأساسية المرتجعة
+          subQuantity: item.returnSubQuantity || 0 // الكمية الفرعية المرتجعة
+        }));
 
       const returnRecord = {
         invoiceId: invoice.id,
@@ -205,7 +179,7 @@ const SalesReturnModal = ({
   const handleClose = () => {
     setCalculated(false);
     setReturnItems([]);
-    setTotalReturnAmount(0);
+
     onClose();
   };
 
@@ -220,10 +194,7 @@ const SalesReturnModal = ({
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-4">
-            <div className="text-lg font-bold text-green-600">
-              <FaCalculator className="inline ml-2" />
-              إجمالي الإرجاع: {formatCurrency(totalReturnAmount)}
-            </div>
+            {/* تم إزالة عرض إجمالي الإرجاع */}
           </div>
           
           <div className="flex gap-3">
@@ -262,7 +233,7 @@ const SalesReturnModal = ({
         {/* معلومات الفاتورة الأساسية */}
         <div className="bg-blue-50 p-4 rounded-lg">
           <h4 className="text-lg font-semibold text-blue-800 mb-3">معلومات الفاتورة الأصلية</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
             <div>
               <span className="font-medium text-blue-700">رقم الفاتورة:</span>
               <div className="text-blue-900">{invoice.id}</div>
@@ -274,10 +245,6 @@ const SalesReturnModal = ({
             <div>
               <span className="font-medium text-blue-700">التاريخ:</span>
               <div className="text-blue-900">{invoice.date || 'غير محدد'}</div>
-            </div>
-            <div>
-              <span className="font-medium text-blue-700">المبلغ الإجمالي:</span>
-              <div className="text-blue-900 font-bold">{formatCurrency(invoice.total)}</div>
             </div>
           </div>
         </div>
@@ -300,7 +267,6 @@ const SalesReturnModal = ({
                     <th className="border border-gray-300 p-3 text-center">إرجاع أساسي</th>
                     <th className="border border-gray-300 p-3 text-center">الكمية الفرعية المباعة</th>
                     <th className="border border-gray-300 p-3 text-center">إرجاع فرعي</th>
-                    <th className="border border-gray-300 p-3 text-center">إجمالي المبلغ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -341,9 +307,6 @@ const SalesReturnModal = ({
                             <FaPlus size={12} />
                           </button>
                         </div>
-                        <div className="text-xs text-gray-500 mt-1 text-center">
-                          {formatCurrency(item.mainUnitPrice || 0)}/وحدة
-                        </div>
                       </td>
                       
                       {/* الكمية الفرعية المباعة */}
@@ -377,18 +340,8 @@ const SalesReturnModal = ({
                             <FaPlus size={12} />
                           </button>
                         </div>
-                        <div className="text-xs text-gray-500 mt-1 text-center">
-                          {formatCurrency(item.subUnitPrice || 0)}/وحدة
-                        </div>
                       </td>
-                      
-                      {/* إجمالي المبلغ */}
-                      <td className="border border-gray-300 p-3 text-center font-bold">
-                        {formatCurrency(
-                          ((item.returnMainQuantity || 0) * (item.mainUnitPrice || 0)) + 
-                          ((item.returnSubQuantity || 0) * (item.subUnitPrice || 0))
-                        )}
-                      </td>
+
                     </tr>
                   ))}
                 </tbody>
@@ -455,10 +408,6 @@ const SalesReturnModal = ({
                 <span className="font-medium text-green-900">
                   {returnItems.reduce((sum, item) => sum + (item.returnSubQuantity || 0), 0)} عبوة
                 </span>
-              </div>
-              <div className="flex justify-between text-lg font-bold border-t border-green-300 pt-2">
-                <span className="text-green-800">إجمالي قيمة الإرجاع:</span>
-                <span className="text-green-900">{formatCurrency(totalReturnAmount)}</span>
               </div>
             </div>
           </div>
