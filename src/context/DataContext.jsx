@@ -347,7 +347,23 @@ export const DataProvider = ({ children, orgId }) => {
     loadData('bero_transfers', setTransfers);
     loadData('bero_audit_logs', setAuditLogs);
     loadData('bero_permissions', setPermissions);
-    loadData('bero_current_user', setCurrentUser);
+    
+    // تحميل المستخدم الحالي أو إنشاء مستخدم افتراضي
+    const savedUser = localStorage.getItem(getStorageKey('bero_current_user'));
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    } else {
+      // إنشاء مستخدم افتراضي للنظام
+      const defaultUser = {
+        id: 'default-admin',
+        name: 'مدير النظام',
+        role: USER_ROLES.ADMIN,
+        email: 'admin@system.local',
+        createdAt: new Date().toISOString()
+      };
+      setCurrentUser(defaultUser);
+      saveData('bero_current_user', defaultUser);
+    }
   };
 
   // حفض البيانات في LocalStorage

@@ -288,10 +288,16 @@ const NewSalesInvoice = () => {
     }
   };
 
-  // الحصول على المخزون المتاح للمنتج
-  const getAvailableQuantity = (productId) => {
+  // الحصول على المخزون المتاح للمنتج (أساسي أو فرعي)
+  const getAvailableQuantity = (productId, type = 'main') => {
     const product = products.find(p => p.id === productId);
-    return product ? product.mainQuantity || 0 : 0;
+    if (!product) return 0;
+    
+    if (type === 'main') {
+      return product.mainQuantity || 0;
+    } else {
+      return product.subQuantity || 0;
+    }
   };
 
   // عرض تحذير عن الكمية المطلوبة
@@ -299,13 +305,30 @@ const NewSalesInvoice = () => {
     const item = items[index];
     if (!item.productId) return null;
     
-    const requestedQty = (item.mainQuantity || 0) + (item.subQuantity || 0);
-    const availableQty = getAvailableQuantity(item.productId);
+    const warnings = [];
     
-    if (requestedQty > availableQty) {
+    // التحقق من الكمية الأساسية
+    if (item.mainQuantity > 0) {
+      const availableMainQty = getAvailableQuantity(item.productId, 'main');
+      if (item.mainQuantity > availableMainQty) {
+        warnings.push(`الكمية الأساسية المطلوبة (${item.mainQuantity}) أكبر من المتاح (${availableMainQty})`);
+      }
+    }
+    
+    // التحقق من الكمية الفرعية
+    if (item.subQuantity > 0) {
+      const availableSubQty = getAvailableQuantity(item.productId, 'sub');
+      if (item.subQuantity > availableSubQty) {
+        warnings.push(`الكمية الفرعية المطلوبة (${item.subQuantity}) أكبر من المتاح (${availableSubQty})`);
+      }
+    }
+    
+    if (warnings.length > 0) {
       return (
         <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-xs">
-          ⚠️ الكمية المطلوبة ({requestedQty}) أكبر من المتاح ({availableQty})
+          {warnings.map((warning, idx) => (
+            <div key={idx}>⚠️ {warning}</div>
+          ))}
         </div>
       );
     }
@@ -430,11 +453,20 @@ const NewSalesInvoice = () => {
       // التحقق من توفر المخزون
       const product = products.find(p => p.id === parseInt(item.productId));
       if (product) {
-        const totalRequested = (item.mainQuantity || 0) + (item.subQuantity || 0);
-        const totalAvailable = product.mainQuantity || 0;
+        // التحقق من الكمية الأساسية
+        if (item.mainQuantity > 0) {
+          const availableMainQty = product.mainQuantity || 0;
+          if (item.mainQuantity > availableMainQty) {
+            errors[`mainStock_${index}`] = `الكمية الأساسية المطلوبة غير متوفرة. المتوفر: ${availableMainQty}`;
+          }
+        }
         
-        if (totalRequested > totalAvailable) {
-          errors[`stock_${index}`] = `الكمية المطلوبة غير متوفرة. المتوفر: ${totalAvailable}`;
+        // التحقق من الكمية الفرعية
+        if (item.subQuantity > 0) {
+          const availableSubQty = product.subQuantity || 0;
+          if (item.subQuantity > availableSubQty) {
+            errors[`subStock_${index}`] = `الكمية الفرعية المطلوبة غير متوفرة. المتوفر: ${availableSubQty}`;
+          }
         }
       }
     });
