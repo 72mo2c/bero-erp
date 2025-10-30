@@ -10,13 +10,16 @@ import { DataProvider } from './context/DataContext';
 import { TabProvider } from './contexts/TabContext';
 import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
 import { OrganizationProvider } from './context/OrganizationContext';
+import { SecureCodeProvider } from './context/SecureCodeContext';
 import Layout from './components/Layout/Layout';
 import Loading from './components/Common/Loading';
 import Toast from './components/Common/Toast';
+import ProtectedAccessRoute from './components/ProtectedAccessRoute';
 
 // Auth Pages
 import Login from './pages/Auth/Login';
 import FindOrganization from './pages/Auth/FindOrganization';
+import AccessCode from './pages/Auth/AccessCode';
 
 // Admin Pages
 import AdminLogin from './pages/Admin/AdminLogin';
@@ -133,7 +136,8 @@ const LegacyPublicRoute = ({ children }) => {
 function App() {
   return (
     <Router>
-      <AdminAuthProvider>
+      <SecureCodeProvider>
+        <AdminAuthProvider>
         <Routes>
           {/* الصفحة الرئيسية توجه إلى تسجيل الدخول */}
           <Route path="/" element={<Navigate to="/login" replace />} />
@@ -210,6 +214,72 @@ function App() {
             }
           />
 
+          {/* ================== مسارات المعرف الآمن ================== */}
+          {/* صفحة إدخال المعرف الآمن */}
+          <Route path="/access-code" element={<AccessCode />} />
+
+          {/* مسارات محمية للمعرف الآمن */}
+          <Route
+            path="/access/*"
+            element={
+              <ProtectedAccessRoute>
+                <Routes>
+                  {/* لوحة تحكم المؤسسين - تتطلب معرف مؤسسين */}
+                  <Route
+                    path="founders-dashboard"
+                    element={
+                      <ProtectedAccessRoute 
+                        requiredPermission="founder_access"
+                        redirectTo="/access-code"
+                      >
+                        <div className="p-8 text-center">
+                          <h1 className="text-3xl font-bold mb-4" style={{ color: '#1e3a8a' }}>
+                            لوحة تحكم المؤسسين
+                          </h1>
+                          <p className="text-gray-600 mb-8">
+                            هذا المحتوى محمي ويتطلب معرف مؤسسين صالح
+                          </p>
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                            <h2 className="text-xl font-semibold text-green-800 mb-2">
+                              ✅ تم التحقق من المعرف بنجاح
+                            </h2>
+                            <p className="text-green-700">
+                              يمكنك الآن الوصول لجميع أجزاء النظام
+                            </p>
+                          </div>
+                        </div>
+                      </ProtectedAccessRoute>
+                    }
+                  />
+
+                  {/* معلومات المعرف الآمن */}
+                  <Route
+                    path="secure-info"
+                    element={
+                      <ProtectedAccessRoute>
+                        <div className="p-8">
+                          <h1 className="text-2xl font-bold mb-6" style={{ color: '#1e3a8a' }}>
+                            معلومات المعرف الآمن
+                          </h1>
+                          <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h2 className="text-lg font-semibold mb-4">حالة المعرف الحالي</h2>
+                            <div className="space-y-4">
+                              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                <p className="text-green-800">
+                                  ✅ المعرف نشط وصالح للاستخدام
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </ProtectedAccessRoute>
+                    }
+                  />
+                </Routes>
+              </ProtectedAccessRoute>
+            }
+          />
+
           {/* ================== المسارات القديمة (للتوافق) ================== */}
           <Route
             path="/login"
@@ -251,7 +321,8 @@ function App() {
             }
           />
         </Routes>
-      </AdminAuthProvider>
+        </AdminAuthProvider>
+      </SecureCodeProvider>
     </Router>
   );
 }

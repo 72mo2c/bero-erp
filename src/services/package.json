@@ -1,0 +1,71 @@
+{
+  "name": "secure-code-management-service",
+  "version": "1.0.0",
+  "description": "خدمة شاملة لإدارة المعرفات الآمنة مع التشفير والمراقبة",
+  "main": "secureCodeService.js",
+  "scripts": {
+    "test": "node secureCodeService.test.js",
+    "test:verbose": "node secureCodeService.test.js --verbose",
+    "start": "node secureCodeService.js",
+    "demo": "node examples/demo.js",
+    "lint": "eslint secureCodeService.js",
+    "docs": "node generate-docs.js"
+  },
+  "keywords": [
+    "security",
+    "encryption",
+    "code-management",
+    "authentication",
+    "rate-limiting",
+    "monitoring",
+    "hash",
+    "aes",
+    "sha256",
+    "secure-codes"
+  ],
+  "author": {
+    "name": "فريق التطوير",
+    "email": "dev@company.com"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/company/secure-code-management.git"
+  },
+  "bugs": {
+    "url": "https://github.com/company/secure-code-management/issues"
+  },
+  "homepage": "https://github.com/company/secure-code-management#readme",
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-import": "^2.25.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.0.0",
+    "jest": "^29.0.0"
+  },
+  "files": [
+    "secureCodeService.js",
+    "secureCodeService.test.js",
+    "README.md",
+    "examples/"
+  ],
+  "config": {
+    "secure_code": {
+      "secret_env_var": "SECURE_CODE_SECRET",
+      "max_attempts": 5,
+      "lockout_duration": 900000,
+      "code_expiry_hours": 24,
+      "min_code_length": 8,
+      "max_code_length": 64
+    }
+  }
+}

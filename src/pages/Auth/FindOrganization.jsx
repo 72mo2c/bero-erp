@@ -149,6 +149,30 @@ const FindOrganization = () => {
             </ul>
           </div>
 
+          {/* استخدام المعرف الآمن */}
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h4 className="font-medium text-blue-900 mb-1">لديك معرف آمن؟</h4>
+                <p className="text-sm text-blue-700">
+                  استخدم المعرف الآمن للوصول مباشرة دون الحاجة لبحث عن المؤسسة
+                </p>
+              </div>
+              <div className="ml-4">
+                <Link
+                  to="/access-code"
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
+                  style={{ backgroundColor: '#1e3a8a' }}
+                >
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  استخدام المعرف
+                </Link>
+              </div>
+            </div>
+          </div>
+
           {/* Back to Login */}
           <div className="mt-6 text-center">
             <Link
