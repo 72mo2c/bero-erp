@@ -3,28 +3,92 @@
 // ======================================
 
 /**
- * تشفير كلمة المرور باستخدام خوارزمية بسيطة
- * في بيئة إنتاجية، استخدم bcrypt أو argon2
+ * تشفير كلمة المرور باستخدام PBKDF2 - خوارزمية آمنة
+ * يستخدم Web Crypto API الآمن
  */
-export const hashPassword = (password) => {
-  // Simple hash for demo - في الإنتاج استخدم bcrypt
-  let hash = 0;
-  const str = password + 'BERO_SALT_KEY_2025';
-  
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+export const hashPassword = async (password) => {
+  try {
+    const encoder = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    
+    // تحويل كلمة المرور إلى ArrayBuffer
+    const passwordBuffer = encoder.encode(password);
+    
+    // استيراد المفتاح للتشفير
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordBuffer,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
+    );
+    
+    // تشفير كلمة المرور
+    const hashedPassword = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000, // 100k iterations للأمان
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      256
+    );
+    
+    // تحويل إلى Base64 مع salt
+    const hashArray = Array.from(new Uint8Array(hashedPassword));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return `${saltHex}:${hashHex}`;
+  } catch (error) {
+    console.error('خطأ في تشفير كلمة المرور:', error);
+    throw new Error('فشل في تشفير كلمة المرور');
   }
-  
-  return Math.abs(hash).toString(36);
 };
 
 /**
- * التحقق من كلمة المرور
+ * التحقق من كلمة المرور مقارنة مع النص المشفر
  */
-export const verifyPassword = (password, hashedPassword) => {
-  return hashPassword(password) === hashedPassword;
+export const verifyPassword = async (password, hashedPasswordWithSalt) => {
+  try {
+    const [saltHex, originalHash] = hashedPasswordWithSalt.split(':');
+    
+    if (!saltHex || !originalHash) {
+      return false;
+    }
+    
+    const encoder = new TextEncoder();
+    const passwordBuffer = encoder.encode(password);
+    const salt = new Uint8Array(saltHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+    
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordBuffer,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
+    );
+    
+    const hashedPassword = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      256
+    );
+    
+    const hashArray = Array.from(new Uint8Array(hashedPassword));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return hashHex === originalHash;
+  } catch (error) {
+    console.error('خطأ في التحقق من كلمة المرور:', error);
+    return false;
+  }
 };
 
 /**

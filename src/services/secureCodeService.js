@@ -1,61 +1,224 @@
 /**
- * خدمة إدارة المعرفات الآمنة المتقدمة
- * Advanced Secure Code Management Service
+ * خدمة إدارة المعرفات الآمنة - نسخة محسّنة ومتوافقة مع المتصفح
+ * Secure Code Management Service - Browser-Compatible Version
  * 
- * هذه الخدمة توفر نظاماً شاملاً ومتطوراً لإدارة المعرفات الآمنة مع:
- * - تشفير AES-256 متقدم
- * - نظام hashing SHA-256
- * - Base32 Encoding
- * - HMAC للتحقق من صحة البيانات
- * - حماية شاملة من الهجمات
- * - نظام مراقبة وتدقيق متقدم
- * - تحليل ذكي للسلوك
+ * توفر هذه الخدمة:
+ * - تشفير آمن باستخدام Web Crypto API
+ * - إدارة المعرفات الآمنة
+ * - حماية من الهجمات الشائعة
  */
 
-// استيراد الأنظمة الأمنية المتقدمة
-const security = require('../utils/security.js');
-const auditLogger = require('../utils/auditLogger.js');
-const rateLimiter = require('../utils/rateLimiter.js');
+// ======================================
+// Helper Functions - الدوال المساعدة
+// ======================================
 
-// استبدال Node.js crypto بـ Web Crypto API المتوافق مع المتصفح
-const crypto = {
-    randomBytes: (length) => {
-        if (typeof window !== 'undefined' && window.crypto) {
-            const array = new Uint8Array(length);
-            window.crypto.getRandomValues(array);
-            return Buffer.from(array);
-        }
-        throw new Error('Web Crypto API غير متوفر');
-    },
-    createHash: (algorithm) => ({
-        update: (data) => ({
-            digest: (encoding) => {
-                // تبسيط للـ SHA-256 hash
-                const encoder = new TextEncoder();
-                const dataBuffer = encoder.encode(data);
-                return window.crypto.subtle.digest('SHA-256', dataBuffer)
-                    .then(buffer => Buffer.from(buffer).toString(encoding));
-            }
-        })
-    }),
-    pbkdf2Sync: (password, salt, iterations, keylen, digest) => {
-        // تبسيط للـ PBKDF2 - في التطبيق الحقيقي ستستخدم Web Crypto API
-        const encoder = new TextEncoder();
-        const keyMaterial = encoder.encode(password + salt.toString('hex'));
-        return window.crypto.subtle.importKey(
-            'raw', 
-            keyMaterial, 
-            { name: 'PBKDF2' }, 
-            false, 
-            ['deriveBits']
-        ).then(key => {
-            return window.crypto.subtle.deriveBits({
-                name: 'PBKDF2',
-                salt: salt,
-                iterations: iterations,
-                hash: 'SHA-256'
-            }, key, keylen * 8).then(bits => {
-                return Buffer.from(bits).toString('hex');
+/**
+ * تحويل ArrayBuffer إلى Base64
+ */
+const arrayBufferToBase64 = (buffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+/**
+ * تحويل Base64 إلى ArrayBuffer
+ */
+const base64ToArrayBuffer = (base64) => {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
+
+/**
+ * تحويل النص إلى ArrayBuffer
+ */
+const textToArrayBuffer = (text) => {
+  const encoder = new TextEncoder();
+  return encoder.encode(text);
+};
+
+/**
+ * تحويل ArrayBuffer إلى نص
+ */
+const arrayBufferToText = (buffer) => {
+  const decoder = new TextDecoder();
+  return decoder.decode(buffer);
+};
+
+// ======================================
+// Core Security Functions - الوظائف الأمنية الأساسية
+// ======================================
+
+/**
+ * توليد معرف آمن عشوائي
+ */
+export const generateSecureCode = () => {
+  try {
+    // توليد 32 بايت عشوائي
+    const randomBytes = new Uint8Array(32);
+    crypto.getRandomValues(randomBytes);
+    
+    // تحويل إلى Base64
+    return arrayBufferToBase64(randomBytes);
+  } catch (error) {
+    console.error('خطأ في توليد المعرف الآمن:', error);
+    // fallback للطريقة القديمة
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  }
+};
+
+/**
+ * توليد معرف آمن قصير (16 أحرف)
+ */
+export const generateShortCode = () => {
+  try {
+    const randomBytes = new Uint8Array(12);
+    crypto.getRandomValues(randomBytes);
+    
+    // تحويل إلى Base64 وأخذ أول 16 حرف
+    return arrayBufferToBase64(randomBytes).replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+  } catch (error) {
+    console.error('خطأ في توليد المعرف القصير:', error);
+    return Math.random().toString(36).substring(2, 18);
+  }
+};
+/**
+ * تشفير نص باستخدام AES-GCM
+ */
+export const encryptText = async (text, key) => {
+  try {
+    // توليد IV عشوائي
+    const iv = new Uint8Array(12);
+    crypto.getRandomValues(iv);
+    
+    // تحويل النص والمفتاح
+    const plaintext = textToArrayBuffer(text);
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      textToArrayBuffer(key),
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    );
+    
+    // تشفير النص
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv },
+      cryptoKey,
+      plaintext
+    );
+    
+    // دمج IV والبيانات المشفرة
+    const result = new Uint8Array(iv.length + new Uint8Array(ciphertext).length);
+    result.set(iv, 0);
+    result.set(new Uint8Array(ciphertext), iv.length);
+    
+    return arrayBufferToBase64(result.buffer);
+  } catch (error) {
+    console.error('خطأ في التشفير:', error);
+    throw new Error('فشل في تشفير النص');
+  }
+};
+
+/**
+ * فك تشفير نص مشفر
+ */
+export const decryptText = async (encryptedText, key) => {
+  try {
+    const encryptedBuffer = base64ToArrayBuffer(encryptedText);
+    const encryptedArray = new Uint8Array(encryptedBuffer);
+    
+    // استخراج IV
+    const iv = encryptedArray.slice(0, 12);
+    const ciphertext = encryptedArray.slice(12);
+    
+    // تحويل المفتاح
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      textToArrayBuffer(key),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+    
+    // فك التشفير
+    const plaintext = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: iv },
+      cryptoKey,
+      ciphertext
+    );
+    
+    return arrayBufferToText(plaintext);
+  } catch (error) {
+    console.error('خطأ في فك التشفير:', error);
+    throw new Error('فشل في فك تشفير النص');
+  }
+};
+
+/**
+ * توليد مفتاح تشفير آمن
+ */
+export const generateEncryptionKey = () => {
+  try {
+    const keyBytes = new Uint8Array(32); // 256-bit key
+    crypto.getRandomValues(keyBytes);
+    return arrayBufferToBase64(keyBytes.buffer);
+  } catch (error) {
+    console.error('خطأ في توليد مفتاح التشفير:', error);
+    throw new Error('فشل في توليد مفتاح التشفير');
+  }
+};
+
+/**
+ * حفظ البيانات المشفرة في localStorage
+ */
+export const storeSecureData = (key, data, encryptionKey) => {
+  try {
+    const encrypted = encryptText(JSON.stringify(data), encryptionKey);
+    localStorage.setItem(key, encrypted);
+    return true;
+  } catch (error) {
+    console.error('خطأ في حفظ البيانات الآمنة:', error);
+    return false;
+  }
+};
+
+/**
+ * استرداد البيانات من localStorage وفك تشفيرها
+ */
+export const getSecureData = (key, encryptionKey) => {
+  try {
+    const encrypted = localStorage.getItem(key);
+    if (!encrypted) return null;
+    
+    const decrypted = decryptText(encrypted, encryptionKey);
+    return JSON.parse(decrypted);
+  } catch (error) {
+    console.error('خطأ في استرداد البيانات الآمنة:', error);
+    return null;
+  }
+};
+
+// ======================================
+// Export Default - التصدير الافتراضي
+// ======================================
+
+export default {
+  generateSecureCode,
+  generateShortCode,
+  encryptText,
+  decryptText,
+  generateEncryptionKey,
+  storeSecureData,
+  getSecureData
+};
             });
         });
     },

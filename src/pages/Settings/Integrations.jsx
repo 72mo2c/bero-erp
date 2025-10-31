@@ -13,6 +13,76 @@ import { FaBuilding, FaWhatsapp, FaLink, FaCheckCircle, FaTimesCircle, FaCog, Fa
 
 const STORAGE_KEY = 'bero_integrations_status';
 
+// ======================================
+// Security Helper Functions - دوال الأمان
+// ======================================
+
+/**
+ * تشفير بسيط للبيانات الحساسة باستخدام Base64 + XOR
+ * للاستخدام في المتصفح فقط - ليس بديلاً عن التشفير القوي
+ */
+const encryptSimple = (data) => {
+  try {
+    const key = 'bero_secret_key_2025'; // في الإنتاج استخدم مفتاح قوي
+    let result = '';
+    for (let i = 0; i < data.length; i++) {
+      result += String.fromCharCode(data.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return btoa(result);
+  } catch (error) {
+    console.error('خطأ في التشفير:', error);
+    return data; // إرجاع البيانات الأصلية في حالة الفشل
+  }
+};
+
+/**
+ * فك التشفير
+ */
+const decryptSimple = (encryptedData) => {
+  try {
+    const key = 'bero_secret_key_2025';
+    const decoded = atob(encryptedData);
+    let result = '';
+    for (let i = 0; i < decoded.length; i++) {
+      result += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return result;
+  } catch (error) {
+    console.error('خطأ في فك التشفير:', error);
+    return encryptedData; // إرجاع البيانات الأصلية في حالة الفشل
+  }
+};
+
+/**
+ * حفظ البيانات المشفرة في localStorage
+ */
+const storeEncryptedData = (key, data) => {
+  try {
+    const encrypted = encryptSimple(JSON.stringify(data));
+    localStorage.setItem(key, encrypted);
+    return true;
+  } catch (error) {
+    console.error('خطأ في حفظ البيانات المشفرة:', error);
+    return false;
+  }
+};
+
+/**
+ * استرداد البيانات من localStorage وفك تشفيرها
+ */
+const getDecryptedData = (key) => {
+  try {
+    const encrypted = localStorage.getItem(key);
+    if (!encrypted) return null;
+    
+    const decrypted = decryptSimple(encrypted);
+    return JSON.parse(decrypted);
+  } catch (error) {
+    console.error('خطأ في استرداد البيانات المشفرة:', error);
+    return null;
+  }
+};
+
 const Integrations = () => {
   const { showSuccess, showWarning } = useNotification();
   const navigate = useNavigate();
@@ -126,9 +196,9 @@ const Integrations = () => {
     setShowConfigModal(true);
     
     // تحميل البيانات المحفوظة إن وجدت
-    const saved = localStorage.getItem(`bero_integration_${integration.id}_config`);
+    const saved = getDecryptedData(`bero_integration_${integration.id}_config`);
     if (saved) {
-      setConfigData(JSON.parse(saved));
+      setConfigData(saved);
     } else {
       setConfigData({
         apiKey: '',
@@ -146,8 +216,12 @@ const Integrations = () => {
     }
 
     try {
-      // حفظ الإعدادات
-      localStorage.setItem(`bero_integration_${selectedIntegration.id}_config`, JSON.stringify(configData));
+      // حفظ الإعدادات مع التشفير
+      const saved = storeEncryptedData(`bero_integration_${selectedIntegration.id}_config`, configData);
+      if (!saved) {
+        showWarning('فشل في حفظ الإعدادات بشكل آمن');
+        return;
+      }
       
       // تحديث حالة التكامل
       const newStatus = {

@@ -151,18 +151,7 @@ const AdminLogin = () => {
             </Button>
           </form>
 
-          {step === 1 && (
-            <div className="mt-6 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
-              <p>المطور الافتراضي</p>
-              <p className="mt-2 font-mono text-xs">
-                Username: <span className="text-blue-900">superadmin</span>
-                <br />
-                Password: <span className="text-blue-900">admin@2025</span>
-                <br />
-                Secret: <span className="text-blue-900">admin2025</span>
-              </p>
-            </div>
-          )}
+
 
           {step === 2 && (
             <div className="mt-6 pt-6 border-t border-gray-200 text-center">

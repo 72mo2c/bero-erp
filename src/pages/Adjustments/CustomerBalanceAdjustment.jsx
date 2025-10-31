@@ -38,33 +38,64 @@ const CustomerBalanceAdjustment = () => {
     return adjustmentType === 'add' ? current + amt : current - amt;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!selectedCustomer || !amount || !reason) {
       showWarning('يرجى ملء جميع الحقول المطلوبة');
       return;
     }
-
-    const transaction = {
+    
+    const adjustmentAmount = parseFloat(amount);
+    const currentBalance = getCurrentBalance();
+    const newBalance = getNewBalance();
+    
+    const adjustment = {
+      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 9),
       type: 'customer_balance_adjustment',
       customerId: selectedCustomer.id,
+      customerName: selectedCustomer.name,
       adjustmentType,
-      amount: parseFloat(amount),
-      oldBalance: getCurrentBalance(),
-      newBalance: getNewBalance(),
+      adjustmentAmount,
+      currentBalance,
+      newBalance,
       reason,
       notes,
       date: new Date().toISOString(),
+      status: 'completed'
     };
 
-    console.log('تسوية رصيد عميل:', transaction);
-    showSuccess('تم تسجيل تسوية رصيد العميل بنجاح');
-    
-    setSelectedCustomer(null);
-    setAmount('');
-    setReason('');
-    setNotes('');
+    try {
+      // حفظ في localStorage مؤقتاً (في التطبيق الحقيقي سيكون هناك API)
+      const adjustmentsKey = 'adjustments_history';
+      const existingAdjustments = JSON.parse(localStorage.getItem(adjustmentsKey) || '[]');
+      existingAdjustments.push(adjustment);
+      localStorage.setItem(adjustmentsKey, JSON.stringify(existingAdjustments));
+      
+      // تحديث رصيد العميل في localStorage
+      const customersKey = 'customers_data';
+      const existingCustomers = JSON.parse(localStorage.getItem(customersKey) || '[]');
+      const updatedCustomers = existingCustomers.map(customer => 
+        customer.id === selectedCustomer.id 
+          ? { ...customer, balance: newBalance, lastAdjustment: adjustment.date }
+          : customer
+      );
+      localStorage.setItem(customersKey, JSON.stringify(updatedCustomers));
+      
+      console.log('تم حفظ تسوية رصيد العميل:', adjustment);
+      showSuccess('تم تسجيل تسوية رصيد العميل بنجاح');
+      
+      // إعادة تعيين النموذج
+      setSelectedCustomer(null);
+      setAmount('');
+      setReason('');
+      setNotes('');
+      setSearchTerm('');
+      
+    } catch (error) {
+      console.error('خطأ في حفظ التسوية:', error);
+      showWarning('حدث خطأ أثناء حفظ التسوية');
+    }
   };
 
   return (

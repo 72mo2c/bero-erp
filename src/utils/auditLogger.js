@@ -83,11 +83,13 @@ class AuditLogger {
     }
 
     /**
-     * ضمان وجود مجلد السجلات
+     * ضمان وجود مجلد السجلات (localStorage simulation)
      */
     ensureLogDirectory() {
-        if (!fs.existsSync(this.logDirectory)) {
-            fs.mkdirSync(this.logDirectory, { recursive: true });
+        // في المتصفح نستخدم localStorage - لا حاجة لإنشاء مجلدات فعلية
+        const stored = localStorage.getItem('audit_logs_exist');
+        if (!stored) {
+            localStorage.setItem('audit_logs_exist', 'true');
         }
     }
 
@@ -487,15 +489,21 @@ class AuditLogger {
         try {
             const date = new Date(logEntry.timestamp);
             const dateStr = date.toISOString().split('T')[0];
-            const logFile = path.join(this.logDirectory, `audit_${dateStr}.log`);
+            const logKey = `audit_logs_${dateStr}`;
             
-            const logLine = JSON.stringify(logEntry) + '\\n';
+            const logLine = JSON.stringify(logEntry) + '\n';
             
             // تشفير إذا كان مفعل
             const finalLogLine = this.config.encryptionEnabled ? 
                 this.encryptLogLine(logLine) : logLine;
             
-            fs.appendFileSync(logFile, finalLogLine);
+            // حفظ في localStorage
+            try {
+                const existingLogs = localStorage.getItem(logKey) || '';
+                localStorage.setItem(logKey, existingLogs + finalLogLine);
+            } catch (error) {
+                console.error('خطأ في حفظ السجل في localStorage:', error);
+            }
             
         } catch (error) {
             console.error('خطأ في حفظ السجل:', error);
@@ -547,17 +555,15 @@ class AuditLogger {
      */
     saveCurrentBatch() {
         try {
-            const batchFile = path.join(
-                this.logDirectory, 
-                `batch_${Date.now()}.json`
-            );
+            const batchKey = `audit_batch_${Date.now()}`;
             
             const batchData = {
                 timestamp: Date.now(),
                 logs: Array.from(this.logs.values())
             };
             
-            fs.writeFileSync(batchFile, JSON.stringify(batchData));
+            // حفظ في localStorage
+            localStorage.setItem(batchKey, JSON.stringify(batchData));
             
         } catch (error) {
             console.error('خطأ في حفظ الدفعة:', error);
@@ -581,18 +587,24 @@ class AuditLogger {
         try {
             const cutoffTime = Date.now() - (this.config.logRetentionDays * 24 * 60 * 60 * 1000);
             
-            // حذف الملفات القديمة
-            const files = fs.readdirSync(this.logDirectory);
-            files.forEach(file => {
-                if (file.startsWith('audit_') || file.startsWith('batch_')) {
-                    const filePath = path.join(this.logDirectory, file);
-                    const stats = fs.statSync(filePath);
-                    
-                    if (stats.mtime.getTime() < cutoffTime) {
-                        fs.unlinkSync(filePath);
+            // تنظيف الملفات من localStorage
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('audit_logs_') || key.startsWith('audit_batch_'))) {
+                    const item = localStorage.getItem(key);
+                    if (item) {
+                        try {
+                            const data = JSON.parse(item);
+                            if (data.timestamp && data.timestamp < cutoffTime) {
+                                localStorage.removeItem(key);
+                                i--; // إعادة ترقيم index بعد الحذف
+                            }
+                        } catch (e) {
+                            // تجاهل الأخطاء في parsing
+                        }
                     }
                 }
-            });
+            }
             
         } catch (error) {
             console.error('خطأ في تنظيف السجلات القديمة:', error);

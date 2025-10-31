@@ -53,16 +53,32 @@ const SalesReport = () => {
     window.print();
   };
 
+  // تنظيف البيانات ضد ثغرة CSV Injection
+  const sanitizeCsvValue = (value) => {
+    if (value === null || value === undefined) return '';
+    
+    // تحويل إلى نص
+    let str = String(value);
+    
+    // إضافة ' قبل أي رمز خطير لمنع تنفيذ الصيغ
+    const dangerousChars = /^[=+\-@]/;
+    if (dangerousChars.test(str)) {
+      str = "'" + str;
+    }
+    
+    return str;
+  };
+
   const exportToExcel = () => {
     const headers = ['رقم الفاتورة', 'التاريخ', 'العميل', 'الإجمالي', 'المدفوع', 'المتبقي', 'الحالة'];
     const csvData = reportData.map((invoice) => [
-      invoice.id,
-      invoice.date,
-      getCustomerName(invoice.customerId),
-      invoice.total?.toFixed(2) || '0.00',
-      invoice.paid?.toFixed(2) || '0.00',
-      (invoice.total - invoice.paid).toFixed(2),
-      invoice.paid >= invoice.total ? 'مدفوع' : 'غير مدفوع',
+      sanitizeCsvValue(invoice.id),
+      sanitizeCsvValue(new Date(invoice.date).toLocaleDateString('ar-EG')),
+      sanitizeCsvValue(getCustomerName(invoice.customerId)),
+      sanitizeCsvValue(invoice.total?.toFixed(2) || '0.00'),
+      sanitizeCsvValue(invoice.paid?.toFixed(2) || '0.00'),
+      sanitizeCsvValue((invoice.total - invoice.paid).toFixed(2)),
+      sanitizeCsvValue(invoice.paid >= invoice.total ? 'مدفوع' : 'غير مدفوع'),
     ]);
 
     let csv = headers.join(',') + '\n';

@@ -148,6 +148,22 @@ const ManageProducts = () => {
     }
   };
 
+  // تنظيف البيانات ضد ثغرة CSV Injection
+  const sanitizeCsvValue = (value) => {
+    if (value === null || value === undefined) return '';
+    
+    // تحويل إلى نص
+    let str = String(value);
+    
+    // إضافة ' قبل أي رمز خطير لمنع تنفيذ الصيغ
+    const dangerousChars = /^[=+\-@]/;
+    if (dangerousChars.test(str)) {
+      str = "'" + str;
+    }
+    
+    return str;
+  };
+
   // تصدير البيانات إلى CSV
   const exportToCSV = () => {
     if (!canExport) {
@@ -160,13 +176,13 @@ const ManageProducts = () => {
     const rows = filteredProducts.map(product => {
       const warehouse = warehouses.find(w => w.id === product.warehouseId);
       return [
-        product.name,
-        product.category,
-        warehouse?.name || '-',
-        product.mainQuantity,
-        product.mainPrice,
-        product.mainPrice * product.mainQuantity,
-        product.barcode || '-'
+        sanitizeCsvValue(product.name),
+        sanitizeCsvValue(product.category),
+        sanitizeCsvValue(warehouse?.name || '-'),
+        sanitizeCsvValue(product.mainQuantity),
+        sanitizeCsvValue(product.mainPrice),
+        sanitizeCsvValue(product.mainPrice * product.mainQuantity),
+        sanitizeCsvValue(product.barcode || '-')
       ];
     });
 
